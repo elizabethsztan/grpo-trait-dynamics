@@ -1,0 +1,17 @@
+PolicyConfig:
+  N: 512
+  K: 16
+  G: 8
+  rho: 0.3
+  b: 0.5
+  alpha: 1.0
+
+TrainConfig:
+  steps: 2000
+  batch_size: 64
+  eta: 0.05
+  num_runs: 5
+  seed: 290402
+
+OutputConfig:
+  output_dir: results
