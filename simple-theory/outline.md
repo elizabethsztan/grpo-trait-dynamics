@@ -44,6 +44,12 @@ This means the trait is a stable property of the response/action, not a random p
 
 Each action has a reward probability $q(x, a) = P(r = 1 \mid x, a)$. The reward is not the trait — instead, reward is statistically correlated with the trait.
 
+There are **two versions** of this we can use. Both produce a trait that is correlated with reward; they differ in the causal story relating the two.
+
+### Version A: Trait drives reward (original)
+
+Here the trait $s$ is the root cause, and reward is generated from it. The causal graph is $s \to r$.
+
 Define:
 
 $$\tilde{s}(a) = 2s(a) - 1 \quad \Rightarrow \quad \tilde{s}(a) \in \{-1, +1\}$$
@@ -66,6 +72,39 @@ The parameter $\rho$ controls the reward–trait correlation.
 
 - `rho = 0.3` or `rho = 0.5` for the first positive-correlation run
 - Later extensions: `rho = 0` and `rho < 0`
+
+### Version B: Hidden quality drives both reward and trait (common cause)
+
+Here reward does **not** depend on the trait at all. Instead a hidden task-quality variable causes both. The causal graph is $z \to r$ and $z \to s$ (a fork), so the trait is a spurious correlate of reward: conditional on quality, the trait carries no reward information ($s \perp r \mid z$).
+
+For each prompt-action pair, draw a hidden task quality:
+
+$$z(x, a) \sim \mathcal{N}(0, 1)$$
+
+Think of $z$ as "how genuinely good this action is at the task." Reward depends only on task quality:
+
+$$q(x, a) = \sigma(\alpha \, z(x, a)), \qquad r(x, a) \sim \text{Bernoulli}(q(x, a))$$
+
+Define the trait as a correlated side effect of quality:
+
+$$m(x, a) = \gamma z(x, a) + \sqrt{1 - \gamma^2} \, \xi_{x,a}, \quad \xi_{x,a} \sim \mathcal{N}(0, 1)$$
+
+$$s(x, a) = \mathbf{1}[m(x, a) > 0]$$
+
+Here:
+
+- $z$ controls reward.
+- $s$ is the trait, now an output-level property $s(x,a)$ (a full $N \times K$ table).
+- $\gamma$ controls how correlated the trait is with task quality (and hence with reward).
+- Reward never uses $s$ directly.
+
+This is the cleaner causal story: GRPO optimises reward (i.e. $z$), and the trait is amplified only because it co-occurs with quality, not because it is rewarded.
+
+**Notes for Version B:**
+
+- The trait is now per prompt-action, not per action. It is still drawn once and frozen, so $\Delta s_t(x,a) = 0$ and the Price-equation check (§1.7) still holds.
+- The threshold $m > 0$ gives a balanced 50/50 trait base rate by symmetry; use $m > c$ for a different base rate.
+- The realised reward–trait correlation is mediated by $\gamma$, $\alpha$, and the threshold, so measure it empirically rather than reading it off $\gamma$.
 
 ## 1.5 GRPO Simulation Loop
 
