@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +33,8 @@ def run_single(policy_cfg, train_cfg, seed):
         rho=policy_cfg["rho"],
         b=policy_cfg["b"],
         alpha=policy_cfg["alpha"],
+        mode=policy_cfg.get("mode", "trait_drives_reward"),
+        gamma=policy_cfg.get("gamma", 0.5),
         seed=seed,
     )
     policy.init_env()
@@ -130,14 +133,15 @@ def main():
     reward_mean = reward_runs.mean(axis=0)
     reward_sem = reward_runs.std(axis=0) / np.sqrt(num_runs)
 
-    output_dir = Path(output_cfg["output_dir"])
-    output_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"]
+    plots_dir = run_dir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
 
-    rho = policy_cfg["rho"]
-    metrics_path = output_dir / f"metrics_rho-{rho}.json"
+    shutil.copy2(args.config, run_dir / "config.yaml")
+
+    metrics_path = run_dir / "metrics.json"
     with open(metrics_path, "w") as f:
         json.dump({
-            "config": cfg,
             "trait_mean": [round(float(v), 4) for v in trait_mean],
             "trait_sem": [round(float(v), 4) for v in trait_sem],
             "reward_mean": [round(float(v), 4) for v in reward_mean],
@@ -147,13 +151,13 @@ def main():
 
     colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
 
-    plot_trait(steps_axis, trait_mean, trait_sem, colors[0], output_dir, f"trait_rho-{rho}")
+    plot_trait(steps_axis, trait_mean, trait_sem, colors[0], plots_dir, "expected_trait")
     plot_trait_and_reward(
         steps_axis,
         [(r"Trait $T_t$", trait_mean, trait_sem), (r"Reward $R_t$", reward_mean, reward_sem)],
-        colors, output_dir, f"trait_reward_rho-{rho}",
+        colors, plots_dir, "trait_and_reward",
     )
-    LOGGER.info(f"saved plots to {output_dir}")
+    LOGGER.info(f"saved plots to {plots_dir}")
 
 
 if __name__ == "__main__":
