@@ -1,4 +1,5 @@
 import numpy as np
+from statistics import NormalDist
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
@@ -9,11 +10,12 @@ class Policy:
                   N, #number of prompts, x
                   K, #number of actions, a
                   G, #how many actions sampled per GRPO update
-                  rho, #how much trait and reward are correlated
-                  b, #how many of the K actions will show the binary trait? between 0 and 1
-                  alpha, #how much latent quality score u maps to reward
+                  rho = 0.3, #how much trait and reward are correlated
+                  b = 0.5, #how many of the K actions will show the binary trait? between 0 and 1
+                  alpha = 1.0, #how much latent quality score u maps to reward
                   mode = "trait_drives_reward", #"trait_drives_reward" (s->r) or "hidden_quality" (z->r, z->s)
                   gamma = 0.5, #version B only: how much trait correlates with hidden quality z
+                  p = 0.5,
                   seed = 290402
                   ):
 
@@ -26,6 +28,7 @@ class Policy:
         self._b = b
         self._mode = mode
         self._gamma = gamma
+        self._p = p
 
         self._seed = seed
 
@@ -50,7 +53,13 @@ class Policy:
             self.q = sigmoid(self._alpha * z)
             xi = np.random.randn(self._N, self._K)
             m = self._gamma * z + np.sqrt(1 - self._gamma ** 2) * xi
-            self.s = (m > 0).astype(float)
+            if self._p <= 0:
+                self.s = np.zeros((self._N, self._K))
+            elif self._p >= 1:
+                self.s = np.ones((self._N, self._K))
+            else:
+                c = NormalDist().inv_cdf(1 - self._p)
+                self.s = (m > c).astype(float)
 
         else:
             raise ValueError(f"unknown mode: {self._mode}")
