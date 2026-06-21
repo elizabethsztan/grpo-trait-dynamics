@@ -13,7 +13,7 @@ class Policy:
                   rho = 0.3, #how much trait and reward are correlated
                   b = 0.5, #how many of the K actions will show the binary trait? between 0 and 1
                   alpha = 1.0, #how much latent quality score u maps to reward
-                  mode = "trait_drives_reward", #"trait_drives_reward" (s->r) or "hidden_quality" (z->r, z->s)
+                  mode = "trait_drives_reward", #"trait_drives_reward" (s and r correlated via rho) or "hidden_quality" (z->r, z->s)
                   gamma = 0.5, #version B only: how much trait correlates with hidden quality z
                   p = 0.5,
                   seed = 290402
@@ -75,7 +75,7 @@ class Policy:
     def expected_reward(self): #get avg reward prob of policy. GRPO increases this
         return np.mean(np.sum(self.get_pi() * self.q, axis=1))
 
-    def grpo_step(self, batch_size, eta, eps=1e-8):
+    def grpo_step(self, batch_size, eta, eps=1e-8, price_check=False):
         pi = self.get_pi()
 
         batch_idx = np.random.choice(self._N, size=batch_size, replace=False)
@@ -101,4 +101,28 @@ class Policy:
 
         self.logits[batch_idx] += grad
         self.t += 1
+
+        if not price_check:
+            return None
+
+        # Price-equation selection estimator
+        # Evalutes on a newly sampled set of actions.
+        # Evaluate omega = pi_{t+1}/pi_t and s on a
+        updated = self.logits[batch_idx]
+        shifted = updated - updated.max(axis=1, keepdims=True)
+        exp_updated = np.exp(shifted)
+        pi_new_batch = exp_updated / exp_updated.sum(axis=1, keepdims=True)
+
+        rng_state = np.random.get_state()
+        eval_draws = np.random.rand(batch_size, self._G)
+        eval_actions = (eval_draws[:, :, None] > cdf[:, None, :]).sum(axis=2)
+        np.random.set_state(rng_state)
+
+        pi_old_eval = np.take_along_axis(pi_batch, eval_actions, axis=1)
+        pi_new_eval = np.take_along_axis(pi_new_batch, eval_actions, axis=1)
+        omega = (pi_new_eval / pi_old_eval).ravel()
+        s_eval = np.take_along_axis(self.s[batch_idx], eval_actions, axis=1).ravel()
+
+        cov = np.mean(omega * s_eval) - np.mean(omega) * np.mean(s_eval)
+        return (batch_size / self._N) * cov
 
