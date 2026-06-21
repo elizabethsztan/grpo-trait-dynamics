@@ -82,16 +82,16 @@ The second term is transmission or representation drift: the internal trait scor
 
 ## Project Story
 
-The first goal is to validate that \(\mathrm{Cov}(\omega, s)\) measures per-step trait selection for fixed traits.
+The first goal is to validate that $\mathrm{Cov}(\omega, s)$ measures per-step trait selection for fixed traits.
 
 The next goal is to use the same measurement idea for neural models:
 
-1. Sample outputs from \(\pi_t\).
-2. Measure their trait scores \(s(x,a)\).
+1. Sample outputs from $\pi_t$.
+2. Measure their trait scores $s(x,a)$.
 3. Do one GRPO update.
-4. Recompute log probabilities under \(\pi_{t+1}\) for the same sampled outputs.
-5. Compute \(\omega = \exp(\log \pi_{t+1} - \log \pi_t)\).
-6. Compute \(\widehat{\mathrm{Cov}}(\omega, s)\).
+4. Recompute log probabilities under $\pi_{t+1}$) for the same sampled outputs.
+5. Compute $\omega = \exp(\log \pi_{t+1} - \log \pi_t)$.
+6. Compute $\widehat{\mathrm{Cov}}(\omega, s)$.
 
 If this covariance predicts the observed trait drift, then selection explains the trait change. If there is a residual, the residual points to representation drift, KL effects, clipping, or other update effects.
 
