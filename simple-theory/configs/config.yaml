@@ -5,7 +5,7 @@ PolicyConfig:
   mode: hidden_quality
 
 HiddenQualityConfig:
-  gamma: [0.0, 0.3, 0.5, 0.7]
+  gamma: [-0.3, 0.0, 0.3, 0.5, 0.7]
   p: [0.0, 0.1, 0.3, 0.5]
 
 TrainConfig:
