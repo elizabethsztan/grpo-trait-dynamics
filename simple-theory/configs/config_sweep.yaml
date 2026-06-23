@@ -1,13 +1,12 @@
 TabularPolicyConfig:
-  N: 512
+  N: 512 #number of prompts
   K: 16
   G: 8
   mode: hidden_quality
 
 HiddenQualityConfig:
-  gamma: 0.5
-  p: 0.3
-  alpha: 1.0
+  gamma: [-0.3, 0.0, 0.3, 0.5, 0.7]
+  p: [0.0, 0.1, 0.3, 0.5]
 
 NeuralPolicyConfig:
   N_eval: 512
@@ -29,7 +28,7 @@ NeuralTrainConfig:
 
 OutputConfig:
   results_dir: results
-  name: config
+  name: config_sweep
 
 PriceCheckConfig:
   enabled: true

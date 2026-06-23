@@ -30,16 +30,15 @@ def plot_grid(gammas, ps, results, colors, output_dir, stem):
             reward_mean = res["reward_mean"]
             reward_sem = res["reward_sem"]
 
-            ax.fill_between(steps_axis, np.maximum(trait_mean - trait_sem, 0), trait_mean + trait_sem,
+            ax.fill_between(steps_axis, trait_mean - trait_sem, trait_mean + trait_sem,
                             alpha=0.25, color=colors[0], zorder=1)
-            ax.fill_between(steps_axis, np.maximum(reward_mean - reward_sem, 0), reward_mean + reward_sem,
+            ax.fill_between(steps_axis, reward_mean - reward_sem, reward_mean + reward_sem,
                             alpha=0.25, color=colors[1], zorder=1)
             ax.plot(steps_axis, trait_mean, color=colors[0], lw=1.2, zorder=2,
                     label=r"Trait $T_t$" if i == 0 and j == 0 else None)
             ax.plot(steps_axis, reward_mean, color=colors[1], lw=1.2, zorder=2,
                     label=r"Reward $R_t$" if i == 0 and j == 0 else None)
             ax.axhline(trait_mean[0], color="grey", ls="--", lw=0.8, zorder=0)
-            ax.set_ylim(0, 1)
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
 
             if i == 0:
@@ -57,7 +56,8 @@ def plot_grid(gammas, ps, results, colors, output_dir, stem):
     plt.close(fig)
 
 
-def plot_price_grid(gammas, ps, results, colors, output_dir, stem):
+def plot_price_grid_curves(gammas, ps, results, colors, output_dir, stem, pred_key, pred_label):
+    # curves-only grid (no residual panel) of observed vs a chosen prediction (exact or sampled)
     n_rows = len(gammas)
     n_cols = len(ps)
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(2.4 * n_cols, 1.9 * n_rows),
@@ -70,16 +70,13 @@ def plot_price_grid(gammas, ps, results, colors, output_dir, stem):
             steps_axis = res["steps_axis"]
             obs = res["observed_cum_mean"]
             obs_sem = res["observed_cum_sem"]
-            pred = res["predicted_cum_mean"]
-            pred_sem = res["predicted_cum_sem"]
+            pred = res[pred_key + "_mean"]
+            pred_sem = res[pred_key + "_sem"]
 
             ax.fill_between(steps_axis, obs - obs_sem, obs + obs_sem, alpha=0.25, color=colors[0], zorder=1)
             ax.fill_between(steps_axis, pred - pred_sem, pred + pred_sem, alpha=0.25, color=colors[1], zorder=1)
-            obs_label = r"Observed: $T_t - T_0$"
-            pred_label = (r"Predicted: $\sum_{\tau<t}\widehat{\Delta T}_\tau"
-                          r" = \sum_{\tau<t}\frac{B}{N}\widehat{\mathrm{Cov}}_\tau(\omega, s)$")
             ax.plot(steps_axis, obs, color=colors[0], lw=1.2, zorder=2,
-                    label=obs_label if i == 0 and j == 0 else None)
+                    label=r"Observed: $T_t - T_0$" if i == 0 and j == 0 else None)
             ax.plot(steps_axis, pred, color=colors[1], lw=1.2, ls="--", zorder=2,
                     label=pred_label if i == 0 and j == 0 else None)
             ax.axhline(0, color="grey", ls="--", lw=0.8, zorder=0)
@@ -103,6 +100,7 @@ def plot_price_grid(gammas, ps, results, colors, output_dir, stem):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument("--mode", choices=["tabular", "neural"], default="tabular")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -110,21 +108,27 @@ def main():
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
-    policy_cfg = cfg["PolicyConfig"]
-    mode = policy_cfg["mode"]
-    if mode != "hidden_quality":
-        raise ValueError("run_sweep only supports mode: hidden_quality")
+    policy_cfg = cfg["TabularPolicyConfig"]
+    if policy_cfg["mode"] != "hidden_quality":
+        raise ValueError("run_sweep only supports the hidden_quality reward model")
 
     hq_cfg = cfg["HiddenQualityConfig"]
     gammas = hq_cfg["gamma"]
     ps = hq_cfg["p"]
     alpha = cfg_value(hq_cfg, "alpha", 1.0)
 
-    train_cfg = cfg["TrainConfig"]
+    if args.mode == "neural":
+        neural_cfg = cfg["NeuralPolicyConfig"]
+        train_cfg = cfg["NeuralTrainConfig"]
+    else:
+        neural_cfg = None
+        train_cfg = cfg["TrainConfig"]
+
     output_cfg = cfg["OutputConfig"]
     base_seed = train_cfg["seed"]
     num_runs = train_cfg["num_runs"]
     price_check = cfg.get("PriceCheckConfig", {}).get("enabled", False)
+    price_samples = cfg.get("PriceCheckConfig", {}).get("samples", 512)
 
     results = {}
     final = {}
@@ -132,7 +136,8 @@ def main():
         for j, p in enumerate(ps):
             reward_cfg = {"gamma": gamma, "p": p, "alpha": alpha}
             res = run_config(policy_cfg, reward_cfg, train_cfg, base_seed, num_runs,
-                             label=f"gamma={gamma},p={p}", price_check=price_check)
+                             label=f"gamma={gamma},p={p}", price_check=price_check,
+                             mode=args.mode, neural_cfg=neural_cfg, price_samples=price_samples)
             results[(i, j)] = res
             cell = {
                 "trait_mean": round(float(res["trait_mean"][-1]), 4),
@@ -147,8 +152,8 @@ def main():
                     round(float(predicted_total / observed_total), 4) if observed_total != 0 else None)
             final[f"gamma={gamma},p={p}"] = cell
 
-    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"]
-    plots_dir = run_dir / "plots"
+    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"] / args.mode
+    plots_dir = run_dir / "plots_sweep"
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(args.config, run_dir / "config.yaml")
@@ -161,7 +166,11 @@ def main():
     colors = [prop["color"] for prop in plt.rcParams["axes.prop_cycle"]]
     plot_grid(gammas, ps, results, colors, plots_dir, "grid_trait_reward")
     if price_check:
-        plot_price_grid(gammas, ps, results, colors, plots_dir, "grid_price_check")
+        plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_exact",
+                               "predicted_cum", r"Exact $\sum \mathrm{Cov}(\omega, s)$")
+        if "sampled_cum_mean" in next(iter(results.values())):
+            plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_estimated",
+                                   "sampled_cum", rf"Sampled $n={price_samples}$")
     LOGGER.info(f"saved grid plot to {plots_dir}")
 
 

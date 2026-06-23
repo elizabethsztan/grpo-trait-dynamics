@@ -9,7 +9,7 @@ import yaml
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-from src.tabular_policy import Policy
+from src.policy import TabularPolicy, NeuralPolicy
 
 LOGGER = logging.getLogger(__name__)
 
@@ -57,47 +57,77 @@ def build_policy(policy_cfg, reward_cfg, seed):
         kwargs["p"] = cfg_value(reward_cfg, "p", 0.5)
     else:
         raise ValueError(f"unknown mode: {mode}")
-    return Policy(**kwargs)
+    return TabularPolicy(**kwargs)
 
 
-def run_single(policy_cfg, reward_cfg, train_cfg, seed, price_check=False):
-    policy = build_policy(policy_cfg, reward_cfg, seed)
+def build_neural_policy(policy_cfg, reward_cfg, train_cfg, neural_cfg, seed, price_samples=512):
+    return NeuralPolicy(
+        N=policy_cfg["N"],
+        K=policy_cfg["K"],
+        G=policy_cfg["G"],
+        d=neural_cfg["d"],
+        N_eval=neural_cfg["N_eval"],
+        alpha=cfg_value(reward_cfg, "alpha", 1.0),
+        gamma=cfg_value(reward_cfg, "gamma", 0.5),
+        p=cfg_value(reward_cfg, "p", 0.5),
+        lr=cfg_value(train_cfg, "lr", 0.1),
+        price_samples=price_samples,
+        seed=seed,
+    )
+
+
+def run_single(policy_cfg, reward_cfg, train_cfg, seed, price_check=False,
+               mode="tabular", neural_cfg=None, price_samples=512):
+    if mode == "neural":
+        policy = build_neural_policy(policy_cfg, reward_cfg, train_cfg, neural_cfg, seed, price_samples)
+    else:
+        policy = build_policy(policy_cfg, reward_cfg, seed)
     policy.init_env()
 
     steps = train_cfg["steps"]
     batch_size = train_cfg["batch_size"]
-    eta = train_cfg["eta"]
+    eta = cfg_value(train_cfg, "eta", None)
 
     trait_curve = np.zeros(steps + 1)
     reward_curve = np.zeros(steps + 1)
-    selection_increments = np.zeros(steps)
+    exact_increments = np.zeros(steps)
+    sampled_increments = np.zeros(steps) if mode == "neural" else None
     trait_curve[0] = policy.get_T()
     reward_curve[0] = policy.expected_reward()
 
     for step in range(steps):
         increment = policy.grpo_step(batch_size=batch_size, eta=eta, price_check=price_check)
         if price_check:
-            selection_increments[step] = increment
+            if isinstance(increment, dict):  # neural: exact + sampled
+                exact_increments[step] = increment["exact"]
+                sampled_increments[step] = increment["sampled"]
+            else:                            # tabular: exact float
+                exact_increments[step] = increment
         trait_curve[step + 1] = policy.get_T()
         reward_curve[step + 1] = policy.expected_reward()
 
-    return trait_curve, reward_curve, selection_increments
+    return trait_curve, reward_curve, exact_increments, sampled_increments
 
 
-def run_config(policy_cfg, reward_cfg, train_cfg, base_seed, num_runs, label="", price_check=False):
+def run_config(policy_cfg, reward_cfg, train_cfg, base_seed, num_runs, label="", price_check=False,
+               mode="tabular", neural_cfg=None, price_samples=512):
     prefix = f"{label} " if label else ""
     trait_runs = []
     reward_runs = []
     observed_cum_runs = []
-    predicted_cum_runs = []
+    predicted_cum_runs = []   # exact cumulative Cov
+    sampled_cum_runs = []     # neural only
     for run_idx in range(num_runs):
         seed = base_seed + run_idx
-        trait_curve, reward_curve, selection_increments = run_single(
-            policy_cfg, reward_cfg, train_cfg, seed, price_check=price_check)
+        trait_curve, reward_curve, exact_increments, sampled_increments = run_single(
+            policy_cfg, reward_cfg, train_cfg, seed, price_check=price_check,
+            mode=mode, neural_cfg=neural_cfg, price_samples=price_samples)
         trait_runs.append(trait_curve)
         reward_runs.append(reward_curve)
         observed_cum_runs.append(trait_curve - trait_curve[0])
-        predicted_cum_runs.append(np.concatenate([[0.0], np.cumsum(selection_increments)]))
+        predicted_cum_runs.append(np.concatenate([[0.0], np.cumsum(exact_increments)]))
+        if sampled_increments is not None:
+            sampled_cum_runs.append(np.concatenate([[0.0], np.cumsum(sampled_increments)]))
         LOGGER.info(f"{prefix}seed {seed} ({run_idx + 1}/{num_runs}): "
                     f"T_0={trait_curve[0]:.4f} -> T_final={trait_curve[-1]:.4f}, "
                     f"R_0={reward_curve[0]:.4f} -> R_final={reward_curve[-1]:.4f}")
@@ -106,7 +136,7 @@ def run_config(policy_cfg, reward_cfg, train_cfg, base_seed, num_runs, label="",
     reward_runs = np.array(reward_runs)
     observed_cum_runs = np.array(observed_cum_runs)
     predicted_cum_runs = np.array(predicted_cum_runs)
-    return {
+    result = {
         "steps_axis": np.arange(trait_runs.shape[1]),
         "trait_mean": trait_runs.mean(axis=0),
         "trait_sem": trait_runs.std(axis=0) / np.sqrt(num_runs),
@@ -117,6 +147,11 @@ def run_config(policy_cfg, reward_cfg, train_cfg, base_seed, num_runs, label="",
         "predicted_cum_mean": predicted_cum_runs.mean(axis=0),
         "predicted_cum_sem": predicted_cum_runs.std(axis=0) / np.sqrt(num_runs),
     }
+    if sampled_cum_runs:
+        sampled_cum_runs = np.array(sampled_cum_runs)
+        result["sampled_cum_mean"] = sampled_cum_runs.mean(axis=0)
+        result["sampled_cum_sem"] = sampled_cum_runs.std(axis=0) / np.sqrt(num_runs)
+    return result
 
 
 def plot_trait(steps_axis, trait_mean, trait_sem, color, output_dir, stem):
@@ -160,11 +195,18 @@ def plot_trait_and_reward(steps_axis, series, colors, output_dir, stem):
 
 
 def plot_price_check(steps_axis, observed_mean, observed_sem, predicted_mean, predicted_sem,
-                     colors, output_dir, stem):
-    fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(5, 6), sharex=True)
+                     colors, output_dir, stem, predicted_label=None, show_residual=True):
+    # residual panel is informative for the tabular Monte-Carlo estimator; the neural price
+    # check is exact, so its residual is ~0 and gets dropped (show_residual=False).
+    if show_residual:
+        fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(5, 6), sharex=True)
+    else:
+        fig, ax_top = plt.subplots(figsize=(5, 4))
     markevery = max(1, len(steps_axis) // 10)
 
-    residual = observed_mean - predicted_mean
+    if predicted_label is None:
+        predicted_label = (r"Predicted: $\sum_{\tau<t}\widehat{\Delta T}_\tau"
+                           r" = \sum_{\tau<t}\frac{B}{N}\widehat{\mathrm{Cov}}_\tau(\omega, s)$")
 
     ax_top.fill_between(steps_axis, observed_mean - observed_sem, observed_mean + observed_sem,
                         alpha=0.25, color=colors[0], zorder=1)
@@ -172,19 +214,21 @@ def plot_price_check(steps_axis, observed_mean, observed_sem, predicted_mean, pr
                         alpha=0.25, color=colors[1], zorder=1)
     ax_top.plot(steps_axis, observed_mean, label=r"Observed: $T_t - T_0$", color=colors[0], lw=1.5,
                 marker="o", markersize=4, markevery=markevery, zorder=2)
-    ax_top.plot(steps_axis, predicted_mean,
-                label=(r"Predicted: $\sum_{\tau<t}\widehat{\Delta T}_\tau"
-                       r" = \sum_{\tau<t}\frac{B}{N}\widehat{\mathrm{Cov}}_\tau(\omega, s)$"),
+    ax_top.plot(steps_axis, predicted_mean, label=predicted_label,
                 color=colors[1], lw=1.5, marker="s", markersize=4, markevery=markevery, zorder=2)
     ax_top.set_ylabel("Cumulative trait change")
     ax_top.legend(frameon=False)
 
-    ax_bot.axhline(0, color="grey", ls="--", lw=1, zorder=0)
-    ax_bot.plot(steps_axis, residual, color=colors[2], lw=1.5,
-                marker="o", markersize=4, markevery=markevery, zorder=2)
-    ax_bot.set_ylabel("Residual (obs - pred)")
-    ax_bot.set_xlabel(r"GRPO step $t$")
-    ax_bot.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    if show_residual:
+        ax_bot.axhline(0, color="grey", ls="--", lw=1, zorder=0)
+        ax_bot.plot(steps_axis, observed_mean - predicted_mean, color=colors[2], lw=1.5,
+                    marker="o", markersize=4, markevery=markevery, zorder=2)
+        ax_bot.set_ylabel("Residual (obs - pred)")
+        ax_bot.set_xlabel(r"GRPO step $t$")
+        ax_bot.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    else:
+        ax_top.set_xlabel(r"GRPO step $t$")
+        ax_top.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     plt.tight_layout()
     plt.savefig(output_dir / f"{stem}.png", dpi=150)
@@ -195,6 +239,7 @@ def plot_price_check(steps_axis, observed_mean, observed_sem, predicted_mean, pr
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument("--mode", choices=["tabular", "neural"], default="tabular")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -202,16 +247,24 @@ def main():
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
-    policy_cfg = cfg["PolicyConfig"]
-    mode = policy_cfg["mode"]
-    reward_cfg = select_reward_cfg(cfg, mode)
-    train_cfg = cfg["TrainConfig"]
+    policy_cfg = cfg["TabularPolicyConfig"]
     output_cfg = cfg["OutputConfig"]
 
+    if args.mode == "neural":
+        reward_cfg = cfg["HiddenQualityConfig"]  # neural always uses hidden_quality
+        neural_cfg = cfg["NeuralPolicyConfig"]
+        train_cfg = cfg["NeuralTrainConfig"]
+    else:
+        reward_cfg = select_reward_cfg(cfg, policy_cfg["mode"])
+        neural_cfg = None
+        train_cfg = cfg["TrainConfig"]
+
     price_check = cfg.get("PriceCheckConfig", {}).get("enabled", False)
+    price_samples = cfg.get("PriceCheckConfig", {}).get("samples", 512)
 
     result = run_config(policy_cfg, reward_cfg, train_cfg, train_cfg["seed"], train_cfg["num_runs"],
-                        price_check=price_check)
+                        price_check=price_check, mode=args.mode, neural_cfg=neural_cfg,
+                        price_samples=price_samples)
 
     steps_axis = result["steps_axis"]
     trait_mean = result["trait_mean"]
@@ -219,7 +272,7 @@ def main():
     reward_mean = result["reward_mean"]
     reward_sem = result["reward_sem"]
 
-    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"]
+    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"] / args.mode
     plots_dir = run_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -245,14 +298,27 @@ def main():
     )
 
     if price_check:
+        # Exact figure (both modes): observed vs exact Cov; residual ~0 confirms the identity.
+        exact_label = r"Exact: $\sum_{\tau<t}\mathrm{Cov}_{p_\tau}(\omega, s)$"
         plot_price_check(steps_axis, result["observed_cum_mean"], result["observed_cum_sem"],
                          result["predicted_cum_mean"], result["predicted_cum_sem"],
-                         colors, plots_dir, "price_check")
+                         colors, plots_dir, "price_check_exact",
+                         predicted_label=exact_label, show_residual=True)
         observed_total = result["observed_cum_mean"][-1]
-        predicted_total = result["predicted_cum_mean"][-1]
-        frac = predicted_total / observed_total if observed_total != 0 else float("nan")
-        LOGGER.info(f"price check: observed drift={observed_total:.4f}, "
-                    f"predicted={predicted_total:.4f}, selection_explained_frac={frac:.3f}")
+        exact_total = result["predicted_cum_mean"][-1]
+        frac = exact_total / observed_total if observed_total != 0 else float("nan")
+        LOGGER.info(f"price check (exact): observed drift={observed_total:.4f}, "
+                    f"exact={exact_total:.4f}, ratio={frac:.3f}")
+        # Estimated figure (neural only): observed vs sampled Cov; residual = estimator error.
+        if "sampled_cum_mean" in result:
+            sampled_label = (r"Sampled ($n=%d$): $\sum_{\tau<t}\widehat{\mathrm{Cov}}_{p_\tau}(\omega, s)$"
+                             % price_samples)
+            plot_price_check(steps_axis, result["observed_cum_mean"], result["observed_cum_sem"],
+                             result["sampled_cum_mean"], result["sampled_cum_sem"],
+                             colors, plots_dir, "price_check_estimated",
+                             predicted_label=sampled_label, show_residual=True)
+            LOGGER.info(f"price check (sampled n={price_samples}): "
+                        f"sampled={result['sampled_cum_mean'][-1]:.4f}")
 
     LOGGER.info(f"saved plots to {plots_dir}")
 
