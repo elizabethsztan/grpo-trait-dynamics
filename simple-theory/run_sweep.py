@@ -97,37 +97,48 @@ def plot_price_grid_curves(gammas, ps, results, colors, output_dir, stem, pred_k
     plt.close(fig)
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True)
-    parser.add_argument("--mode", choices=["tabular", "neural"], default="tabular")
-    args = parser.parse_args()
+def plot_price_samples_grid(samples_list, results, colors, output_dir, stem):
+    # 1-row grid, one cell per price-sample count: observed (= exact dT) vs the sampled
+    # cumulative estimator. As n grows the sampled curve tightens onto the observed line.
+    n_cols = len(samples_list)
+    fig, axes = plt.subplots(1, n_cols, figsize=(2.4 * n_cols, 2.6),
+                             sharex=True, sharey=True, squeeze=False)
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    for k, ns in enumerate(samples_list):
+        ax = axes[0][k]
+        res = results[k]
+        steps_axis = res["steps_axis"]
+        obs = res["observed_cum_mean"]
+        obs_sem = res["observed_cum_sem"]
+        samp = res["sampled_cum_mean"]
+        samp_sem = res["sampled_cum_sem"]
 
-    with open(args.config) as f:
-        cfg = yaml.safe_load(f)
+        ax.fill_between(steps_axis, obs - obs_sem, obs + obs_sem, alpha=0.25, color=colors[0], zorder=1)
+        ax.fill_between(steps_axis, samp - samp_sem, samp + samp_sem, alpha=0.25, color=colors[1], zorder=1)
+        ax.plot(steps_axis, obs, color=colors[0], lw=1.2, zorder=2,
+                label=r"Observed: $T_t - T_0$" if k == 0 else None)
+        ax.plot(steps_axis, samp, color=colors[1], lw=1.2, ls="--", zorder=2,
+                label=r"Sampled $\sum \widehat{\mathrm{Cov}}(\omega, s)$" if k == 0 else None)
+        ax.axhline(0, color="grey", ls="--", lw=0.8, zorder=0)
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
+        ax.set_title(rf"$n$ = {ns}")
+        ax.set_xlabel(r"step $t$")
 
-    policy_cfg = cfg["TabularPolicyConfig"]
-    if policy_cfg["mode"] != "hidden_quality":
-        raise ValueError("run_sweep only supports the hidden_quality reward model")
+    axes[0][0].set_ylabel("Cumulative trait change")
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, loc="upper center", ncol=2)
+    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.savefig(output_dir / f"{stem}.png", dpi=150)
+    fig.savefig(output_dir / f"{stem}.pdf")
+    plt.close(fig)
 
-    hq_cfg = cfg["HiddenQualityConfig"]
-    gammas = hq_cfg["gamma"]
-    ps = hq_cfg["p"]
-    alpha = cfg_value(hq_cfg, "alpha", 1.0)
 
-    if args.mode == "neural":
-        neural_cfg = cfg["NeuralPolicyConfig"]
-        train_cfg = cfg["NeuralTrainConfig"]
-    else:
-        neural_cfg = None
-        train_cfg = cfg["TrainConfig"]
-
-    output_cfg = cfg["OutputConfig"]
-    base_seed = train_cfg["seed"]
-    num_runs = train_cfg["num_runs"]
-    price_check = cfg.get("PriceCheckConfig", {}).get("enabled", False)
+def run_gamma_p_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_seed, num_runs,
+                      price_check, run_dir, colors):
+    hq_sweep = cfg["HiddenQualityConfigSweep"]
+    gammas = hq_sweep["gamma"]
+    ps = hq_sweep["p"]
+    alpha = cfg_value(cfg["HiddenQualityConfig"], "alpha", 1.0)
     price_samples = cfg.get("PriceCheckConfig", {}).get("samples", 512)
 
     results = {}
@@ -137,7 +148,7 @@ def main():
             reward_cfg = {"gamma": gamma, "p": p, "alpha": alpha}
             res = run_config(policy_cfg, reward_cfg, train_cfg, base_seed, num_runs,
                              label=f"gamma={gamma},p={p}", price_check=price_check,
-                             mode=args.mode, neural_cfg=neural_cfg, price_samples=price_samples)
+                             mode=mode, neural_cfg=neural_cfg, price_samples=price_samples)
             results[(i, j)] = res
             cell = {
                 "trait_mean": round(float(res["trait_mean"][-1]), 4),
@@ -152,26 +163,106 @@ def main():
                     round(float(predicted_total / observed_total), 4) if observed_total != 0 else None)
             final[f"gamma={gamma},p={p}"] = cell
 
-    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"] / args.mode
     plots_dir = run_dir / "plots_sweep"
     plots_dir.mkdir(parents=True, exist_ok=True)
-
-    shutil.copy2(args.config, run_dir / "config.yaml")
 
     metrics_path = run_dir / "metrics.json"
     with open(metrics_path, "w") as f:
         json.dump({"gammas": gammas, "ps": ps, "final": final}, f, indent=2)
     LOGGER.info(f"saved metrics to {metrics_path}")
 
-    colors = [prop["color"] for prop in plt.rcParams["axes.prop_cycle"]]
     plot_grid(gammas, ps, results, colors, plots_dir, "grid_trait_reward")
     if price_check:
         plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_exact",
                                "predicted_cum", r"Exact $\sum \mathrm{Cov}(\omega, s)$")
         if "sampled_cum_mean" in next(iter(results.values())):
+            samples = cfg.get("PriceCheckConfig", {}).get("samples", 512)
             plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_estimated",
-                                   "sampled_cum", rf"Sampled $n={price_samples}$")
+                                   "sampled_cum", rf"Sampled $n={samples}$")
     LOGGER.info(f"saved grid plot to {plots_dir}")
+
+
+def run_price_samples_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_seed, num_runs,
+                            run_dir, colors):
+    if mode != "neural":
+        raise ValueError("--sweep price-samples requires --mode neural "
+                         "(tabular has no sampled estimator)")
+
+    hq = cfg["HiddenQualityConfig"]  # scalar gamma/p — fixed across the sweep
+    reward_cfg = {"gamma": hq["gamma"], "p": hq["p"], "alpha": cfg_value(hq, "alpha", 1.0)}
+    samples_list = cfg["PriceCheckConfigSweep"]["samples"]
+
+    # Training is bit-identical across n (price_samples only feeds the diagnostic sampled Cov,
+    # never the weight update), so we re-run per n for simplicity; only the sampled curve varies.
+    results = {}
+    final = {}
+    for k, ns in enumerate(samples_list):
+        res = run_config(policy_cfg, reward_cfg, train_cfg, base_seed, num_runs,
+                         label=f"samples={ns}", price_check=True,
+                         mode=mode, neural_cfg=neural_cfg, price_samples=ns)
+        results[k] = res
+        observed = res["observed_cum_mean"][-1]
+        sampled = res["sampled_cum_mean"][-1]
+        final[f"samples={ns}"] = {
+            "observed": round(float(observed), 4),
+            "sampled": round(float(sampled), 4),
+            "residual": round(float(sampled - observed), 4),
+        }
+
+    plots_dir = run_dir / "plots_sweep_price_samples"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics_path = run_dir / "metrics_price_samples.json"
+    with open(metrics_path, "w") as f:
+        json.dump({"samples": samples_list, "final": final}, f, indent=2)
+    LOGGER.info(f"saved metrics to {metrics_path}")
+
+    plot_price_samples_grid(samples_list, results, colors, plots_dir, "grid_price_samples")
+    LOGGER.info(f"saved grid plot to {plots_dir}")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--mode", choices=["tabular", "neural"], default="tabular")
+    parser.add_argument("--sweep", choices=["gamma-p", "price-samples"], default="gamma-p",
+                        help="axis to sweep: gamma-p grid, or the price-sample budget (neural only)")
+    parser.add_argument("--no-price-check", action="store_false", dest="price_check",
+                        help="disable the Price-equation check (on by default; ignored by price-samples)")
+    parser.set_defaults(price_check=True)
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+    with open(args.config) as f:
+        cfg = yaml.safe_load(f)
+
+    policy_cfg = cfg["TabularPolicyConfig"]
+    if policy_cfg["mode"] != "hidden_quality":
+        raise ValueError("run_sweep only supports the hidden_quality reward model")
+
+    if args.mode == "neural":
+        neural_cfg = cfg["NeuralPolicyConfig"]
+        train_cfg = cfg["NeuralTrainConfig"]
+    else:
+        neural_cfg = None
+        train_cfg = cfg["TrainConfig"]
+
+    output_cfg = cfg["OutputConfig"]
+    base_seed = train_cfg["seed"]
+    num_runs = train_cfg["num_runs"]
+    colors = [prop["color"] for prop in plt.rcParams["axes.prop_cycle"]]
+
+    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"] / args.mode
+    run_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(args.config, run_dir / "config.yaml")
+
+    if args.sweep == "price-samples":
+        run_price_samples_sweep(cfg, policy_cfg, neural_cfg, train_cfg, args.mode,
+                                base_seed, num_runs, run_dir, colors)
+    else:
+        run_gamma_p_sweep(cfg, policy_cfg, neural_cfg, train_cfg, args.mode,
+                          base_seed, num_runs, args.price_check, run_dir, colors)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,12 @@ TabularPolicyConfig:
   G: 8
   mode: hidden_quality
 
-HiddenQualityConfig:
+HiddenQualityConfig:        # scalar — used by --sweep price-samples
+  gamma: 0.3
+  p: 0.1
+  alpha: 1.0
+
+HiddenQualityConfigSweep:   # lists — used by --sweep gamma-p
   gamma: [-0.3, 0.0, 0.3, 0.5, 0.7]
   p: [0.0, 0.1, 0.3, 0.5]
 
@@ -26,10 +31,12 @@ NeuralTrainConfig:
   seed: 290402
   lr: 0.02
 
+PriceCheckConfig:           # scalar — single run + gamma-p sweep
+  samples: 512
+
+PriceCheckConfigSweep:      # list — used by --sweep price-samples
+  samples: [8, 16, 32, 64, 128, 512]
+
 OutputConfig:
   results_dir: results
   name: config_sweep
-
-PriceCheckConfig:
-  enabled: true
-  samples: 512

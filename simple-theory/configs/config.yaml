@@ -32,5 +32,4 @@ OutputConfig:
   name: config
 
 PriceCheckConfig:
-  enabled: true
   samples: 512

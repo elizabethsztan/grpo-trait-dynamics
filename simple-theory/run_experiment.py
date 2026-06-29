@@ -240,6 +240,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--mode", choices=["tabular", "neural"], default="tabular")
+    parser.add_argument("--no-price-check", action="store_false", dest="price_check",
+                        help="disable the Price-equation check (on by default)")
+    parser.set_defaults(price_check=True)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -259,7 +262,7 @@ def main():
         neural_cfg = None
         train_cfg = cfg["TrainConfig"]
 
-    price_check = cfg.get("PriceCheckConfig", {}).get("enabled", False)
+    price_check = args.price_check
     price_samples = cfg.get("PriceCheckConfig", {}).get("samples", 512)
 
     result = run_config(policy_cfg, reward_cfg, train_cfg, train_cfg["seed"], train_cfg["num_runs"],
