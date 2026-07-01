@@ -158,7 +158,7 @@ def plot_trait(steps_axis, trait_mean, trait_sem, color, output_dir, stem):
     fig, ax = plt.subplots(figsize=(5, 4))
     markevery = max(1, len(steps_axis) // 10)
 
-    ax.fill_between(steps_axis, np.maximum(trait_mean - trait_sem, 0), trait_mean + trait_sem,
+    ax.fill_between(steps_axis, trait_mean - trait_sem, trait_mean + trait_sem,
                     alpha=0.25, color=color, zorder=1)
     ax.plot(steps_axis, trait_mean, color=color, lw=1.5,
             marker="o", markersize=4, markevery=markevery, zorder=2)
@@ -178,7 +178,7 @@ def plot_trait_and_reward(steps_axis, series, colors, output_dir, stem):
     markevery = max(1, len(steps_axis) // 10)
 
     for i, (label, mean, sem) in enumerate(series):
-        ax.fill_between(steps_axis, np.maximum(mean - sem, 0), mean + sem,
+        ax.fill_between(steps_axis, mean - sem, mean + sem,
                         alpha=0.25, color=colors[i], zorder=1)
     for i, (label, mean, sem) in enumerate(series):
         ax.plot(steps_axis, mean, label=label, color=colors[i], lw=1.5,
@@ -282,13 +282,13 @@ def main():
     shutil.copy2(args.config, run_dir / "config.yaml")
 
     metrics_path = run_dir / "metrics.json"
+    metrics = {
+        key: [round(float(v), 4) for v in value]
+        for key, value in result.items()
+        if key.endswith("_mean") or key.endswith("_sem") or key == "steps_axis"
+    }
     with open(metrics_path, "w") as f:
-        json.dump({
-            "trait_mean": [round(float(v), 4) for v in trait_mean],
-            "trait_sem": [round(float(v), 4) for v in trait_sem],
-            "reward_mean": [round(float(v), 4) for v in reward_mean],
-            "reward_sem": [round(float(v), 4) for v in reward_sem],
-        }, f, indent=2)
+        json.dump(metrics, f, indent=2)
     LOGGER.info(f"saved metrics to {metrics_path}")
 
     colors = [prop["color"] for prop in plt.rcParams["axes.prop_cycle"]]
