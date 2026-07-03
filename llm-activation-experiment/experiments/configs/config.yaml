@@ -48,7 +48,7 @@ PriceEvalConfig:                 # Phase 3
   price_samples: [128, 512, 2048]   # N sweep for the Price estimator
   direct_samples: 8192              # high-budget N_dir for the target direct-drift line
   eval_prompts: 500
-  batch_size: 64                    # rollouts/forwards batched per GPU call (left-pad gen)
+  batch_size: 8                     # rollouts/forwards batched per GPU call (left-pad gen)
 
 OutputConfig:
   results_dir: results

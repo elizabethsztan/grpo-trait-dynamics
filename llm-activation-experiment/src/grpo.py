@@ -76,9 +76,11 @@ def grpo_step(policy, optimizer, batch, gen_cfg, cfg):
     grpo_cfg = cfg["GRPOConfig"]
     from src.verifier import reward as reward_fn
     G, kl_coef, eps = grpo_cfg["G"], grpo_cfg["kl_coef"], 1e-8
-    losses, rewards_all, advs_all, kls = [], [], [], []
+    rewards_all, advs_all, kls = [], [], []
     degenerate = 0
 
+    # Pass 1: sample rollouts, reward, group-normalised advantages (no autograd).
+    items = []                                          # (prompt_ids, completion, advantage)
     for ex, prompt_ids in batch:                        # ex has 'gold'; prompt_ids precomputed
         comps = sample_completions(policy, prompt_ids, G, gen_cfg)
         texts = [policy.tokenizer.decode(c, skip_special_tokens=True) for c in comps]
@@ -90,22 +92,24 @@ def grpo_step(policy, optimizer, batch, gen_cfg, cfg):
         else:
             adv = (r - r.mean()) / (r.std() + eps)
         advs_all.extend(adv.tolist())
-
         for c, a in zip(comps, adv):
-            if c.numel() == 0:
-                continue
-            tok_lp = _token_logprobs(policy, prompt_ids, c)          # grad
-            with policy.disable_lora():
-                ref_lp = _token_logprobs(policy, prompt_ids, c).detach()
-            log_ratio = ref_lp - tok_lp
-            kl = (torch.exp(log_ratio) - log_ratio - 1.0).mean()     # k3, token-avg
-            pg = -(a.to(tok_lp.device) * tok_lp.mean())
-            losses.append(pg + kl_coef * kl)
-            kls.append(kl.item())
+            if c.numel() > 0:
+                items.append((prompt_ids, c, float(a)))
 
-    loss = torch.stack(losses).mean()
+    # Pass 2: GRADIENT ACCUMULATION. Backward per completion (scaled by 1/N) so only
+    # one completion's autograd graph is alive at a time -> memory is independent of
+    # batch_size * G. The reference forward runs under no_grad (builds no graph).
     optimizer.zero_grad()
-    loss.backward()
+    N = max(len(items), 1)
+    for prompt_ids, c, a in items:
+        tok_lp = _token_logprobs(policy, prompt_ids, c)              # grad
+        with torch.no_grad(), policy.disable_lora():
+            ref_lp = _token_logprobs(policy, prompt_ids, c)          # pi_ref, no graph
+        log_ratio = ref_lp - tok_lp
+        kl = (torch.exp(log_ratio) - log_ratio - 1.0).mean()         # k3, token-avg
+        pg = -(a * tok_lp.mean())
+        ((pg + kl_coef * kl) / N).backward()                         # accumulate, free graph
+        kls.append(kl.item())
     optimizer.step()
     return {
         "mean_reward": float(sum(rewards_all) / len(rewards_all)),

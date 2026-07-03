@@ -1,0 +1,16 @@
+# Pre-flight for the lr pilot: runs all 4 phases in a few minutes but KEEPS the
+# memory-heavy settings of the real pilot (max_new_tokens 256, GRPO batch_size 16
+# + G 8, Phase-3 batch_size 64) so it catches OOM / edge cases at the true
+# per-item scale. Everything else is shrunk (steps 2, tiny data). Throwaway.
+ModelConfig:
+  backbone: Qwen/Qwen3.5-2B-Base
+  sae_repo: Qwen/SAE-Res-Qwen3.5-2B-Base-W32K-L0_100
+  layer_L: 12
+  seed: 290402
+DataConfig: {dataset: gsm8k, n_train: 40, n_feat: 24, n_eval: 24}
+GenConfig: {temperature: 1.0, top_p: 1.0, top_k: 0, max_new_tokens: 256, prompt_style: few_shot, n_shots: 4}
+CapabilityConfig: {n_prompts: 8, temperature: 1.0, target_success_band: [0.2, 0.7]}
+FeatureDiscoveryConfig: {K: 8, candidate_layers: [12], min_activity: 0.1, top_k_each_sign: 2, val_frac: 0.5, n_controls: 2}
+GRPOConfig: {steps: 2, batch_size: 16, G: 8, lr: 1.0e-5, kl_coef: 0.01, clip: null, lora_rank: 16, lora_layers: ">L", checkpoint_every: 1, num_runs: 1, seed: 290402}
+PriceEvalConfig: {price_samples: [16, 64], direct_samples: 64, eval_prompts: 24, batch_size: 8}
+OutputConfig: {results_dir: results, name: pilot_preflight}
