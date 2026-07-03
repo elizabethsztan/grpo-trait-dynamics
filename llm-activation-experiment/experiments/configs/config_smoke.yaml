@@ -11,5 +11,5 @@ GenConfig: {temperature: 1.0, top_p: 1.0, top_k: 0, max_new_tokens: 64, prompt_s
 CapabilityConfig: {n_prompts: 16, temperature: 1.0, target_success_band: [0.2, 0.7]}
 FeatureDiscoveryConfig: {K: 4, candidate_layers: [12], min_activity: 0.1, top_k_each_sign: 2, val_frac: 0.5, n_controls: 2}
 GRPOConfig: {steps: 3, batch_size: 4, G: 4, lr: 1.0e-5, kl_coef: 0.01, clip: null, lora_rank: 8, lora_layers: ">L", checkpoint_every: 1, num_runs: 1, seed: 290402}
-PriceEvalConfig: {price_samples: [16, 32], direct_samples: 48, eval_prompts: 16}
+PriceEvalConfig: {price_samples: [16, 32], direct_samples: 48, eval_prompts: 16, batch_size: 16}
 OutputConfig: {results_dir: results, name: smoke_L12}

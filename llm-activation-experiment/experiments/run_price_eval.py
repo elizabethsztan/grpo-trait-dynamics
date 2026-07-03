@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np, torch, yaml
 from src.model import load_policy
 from src.sae import load_sae
-from src.trait import collect_feature_scores
-from src.logprob import sequence_logprob
-from src.grpo import sample_completions
+from src.trait import collect_feature_scores_batch
+from src.logprob import sequence_logprob_batch
+from src.grpo import sample_completions_batch
 from src.data import load_gsm8k_splits, build_prompt
 
 LOGGER = logging.getLogger(__name__)
@@ -17,16 +17,37 @@ def _feature_ids(features):
     return ids, ctrl
 
 
-def _draw(policy, examples, gen, n, rng):
-    # x ~ eval prompts, a ~ pi_t(.|x): one completion per draw.
+def _chunks(seq, bs):
+    for i in range(0, len(seq), bs):
+        yield seq[i:i + bs]
+
+
+def _draw(policy, examples, gen, n, rng, bs):
+    # x ~ eval prompts, a ~ pi_t(.|x): one completion per draw, generated in batches.
+    pids = [policy.tokenizer(build_prompt(examples[int(rng.integers(len(examples)))]["question"],
+                                          n_shots=gen["n_shots"]), return_tensors="pt").input_ids[0]
+            for _ in range(n)]
     draws = []
-    for _ in range(n):
-        ex = examples[int(rng.integers(len(examples)))]
-        pid = policy.tokenizer(build_prompt(ex["question"], n_shots=gen["n_shots"]),
-                               return_tensors="pt").input_ids[0]
-        cid = sample_completions(policy, pid, 1, gen)[0]
-        draws.append((pid, cid))
+    for chunk in _chunks(pids, bs):
+        comps = sample_completions_batch(policy, chunk, gen)
+        draws.extend(zip(chunk, comps))
     return draws
+
+
+def _trait_matrix(policy, sae, layer, draws, all_ids, bs):
+    # (len(draws), F) trait scores on CPU, batched teacher-forced.
+    rows = []
+    for chunk in _chunks(draws, bs):
+        s = collect_feature_scores_batch(policy, sae, layer, chunk).cpu()   # (b, n_features)
+        rows.append(s[:, all_ids])
+    return torch.cat(rows, dim=0)
+
+
+def _logprobs(policy, draws, bs):
+    out = []
+    for chunk in _chunks(draws, bs):
+        out.extend(sequence_logprob_batch(policy, chunk))
+    return torch.tensor(out)
 
 
 def main():
@@ -50,25 +71,25 @@ def main():
     ckpts = sorted((out / "checkpoints").glob("step_*"), key=lambda p: int(p.name.split("_")[1]))
     rng = np.random.default_rng(cfg["ModelConfig"]["seed"] + 777)
     N_max = max(pe["price_samples"] + [pe["direct_samples"]])
+    bs = pe.get("batch_size", 32)
 
     with open(out / "price_eval.jsonl", "w") as f:
         for t in range(len(ckpts) - 1):
             policy.load_lora(ckpts[t])
-            # price draws from pi_t (independent of the gradient rollouts) + trait scores
-            price_draws = _draw(policy, eval_ex, gen, N_max, rng)
-            s_price = torch.stack([collect_feature_scores(policy, sae, layer, p_, c).cpu()[all_ids]
-                                   for p_, c in price_draws])              # (N_max, F)
-            logp_t = torch.tensor([sequence_logprob(policy, p_, c) for p_, c in price_draws])
+            # price draws from pi_t (independent of the gradient rollouts) + trait scores.
+            # The SAME price_draws feed logp_t and logp_tp1 so any batched-forward numerical
+            # artifact is common-mode and cancels in omega = exp(logp_tp1 - logp_t).
+            price_draws = _draw(policy, eval_ex, gen, N_max, rng, bs)
+            s_price = _trait_matrix(policy, sae, layer, price_draws, all_ids, bs)   # (N_max, F)
+            logp_t = _logprobs(policy, price_draws, bs)
             # direct T_t (high budget)
-            direct_draws = _draw(policy, eval_ex, gen, pe["direct_samples"], rng)
-            s_dir_t = torch.stack([collect_feature_scores(policy, sae, layer, p_, c).cpu()[all_ids]
-                                   for p_, c in direct_draws]).mean(0)     # (F,)
+            direct_draws = _draw(policy, eval_ex, gen, pe["direct_samples"], rng, bs)
+            s_dir_t = _trait_matrix(policy, sae, layer, direct_draws, all_ids, bs).mean(0)   # (F,)
 
             policy.load_lora(ckpts[t + 1])
-            logp_tp1 = torch.tensor([sequence_logprob(policy, p_, c) for p_, c in price_draws])
-            direct_draws2 = _draw(policy, eval_ex, gen, pe["direct_samples"], rng)
-            s_dir_tp1 = torch.stack([collect_feature_scores(policy, sae, layer, p_, c).cpu()[all_ids]
-                                     for p_, c in direct_draws2]).mean(0)
+            logp_tp1 = _logprobs(policy, price_draws, bs)
+            direct_draws2 = _draw(policy, eval_ex, gen, pe["direct_samples"], rng, bs)
+            s_dir_tp1 = _trait_matrix(policy, sae, layer, direct_draws2, all_ids, bs).mean(0)
             direct_drift = (s_dir_tp1 - s_dir_t)                            # (F,)
 
             omega_full = torch.exp(logp_tp1 - logp_t)                       # (N_max,)

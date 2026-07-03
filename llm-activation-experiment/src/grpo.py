@@ -31,6 +31,37 @@ def sample_completions(policy, prompt_ids, G, gen_cfg):
     return completions
 
 
+def sample_completions_batch(policy, prompt_ids_list, gen_cfg):
+    # Generate one completion for each (possibly different-length) prompt in ONE batched
+    # generate() call. Prompts are LEFT-padded so all rows begin generating at the same
+    # index; verified numerically identical to per-prompt generation for this SSM-hybrid
+    # model (leading pads do not pollute the recurrent state). Returns list[Tensor] of the
+    # exact sampled spans (trailing pad stripped; pad==eos so a trailing EOS is stripped,
+    # matching the serial sample_completions convention).
+    device = policy.model.device
+    pad = policy.tokenizer.pad_token_id
+    L = max(x.shape[0] for x in prompt_ids_list)
+    ids = torch.full((len(prompt_ids_list), L), pad, dtype=torch.long)
+    attn = torch.zeros((len(prompt_ids_list), L), dtype=torch.long)
+    for i, x in enumerate(prompt_ids_list):
+        ids[i, L - x.shape[0]:] = x
+        attn[i, L - x.shape[0]:] = 1
+    with torch.no_grad():
+        out = policy.model.generate(
+            ids.to(device), attention_mask=attn.to(device),
+            do_sample=True, temperature=gen_cfg["temperature"], top_p=gen_cfg["top_p"],
+            top_k=(gen_cfg["top_k"] or 0), max_new_tokens=gen_cfg["max_new_tokens"],
+            pad_token_id=pad,
+        )
+    completions = []
+    for row in out:
+        comp = row[L:]                      # new tokens start after the left-padded prompt block
+        keep = (comp != pad).nonzero()
+        end = (keep[-1].item() + 1) if len(keep) else 0
+        completions.append(comp[:end].detach().cpu())
+    return completions
+
+
 def _token_logprobs(policy, prompt_ids, completion_ids):
     device = policy.model.device
     ids = torch.cat([prompt_ids, completion_ids]).unsqueeze(0).to(device)
