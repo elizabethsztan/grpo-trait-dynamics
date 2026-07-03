@@ -1,0 +1,54 @@
+ModelConfig:
+  backbone: Qwen/Qwen3.5-2B-Base
+  sae_repo: Qwen/SAE-Res-Qwen3.5-2B-Base-W32K-L0_100
+  layer_L: 12                 # probe layer; Phase 1 may override from the scan
+  seed: 290402
+
+DataConfig:
+  dataset: gsm8k
+  n_train: 5000
+  n_feat: 1000
+  n_eval: 1000
+
+GenConfig:
+  temperature: 1.0              # clean run: sampling dist == logprob dist (unbiased omega)
+  top_p: 1.0                    # no nucleus truncation
+  top_k: 0                      # no top-k truncation
+  max_new_tokens: 256
+  prompt_style: few_shot        # fixed few-shot GSM8K template; completions end with "Answer: N"
+  n_shots: 4
+
+CapabilityConfig:                # Phase 0
+  n_prompts: 400
+  temperature: 1.0             # clean-run setting; NOT swept (see Phase 0)
+  target_success_band: [0.2, 0.7]
+
+FeatureDiscoveryConfig:          # Phase 1
+  K: 8                          # completions per prompt
+  candidate_layers: [10, 12, 16]
+  min_activity: 0.1
+  top_k_each_sign: 5
+  val_frac: 0.5                 # discovery/validation split of D_feat; selected features re-checked on val
+  n_controls: 5                 # random active near-zero-rho control features to track
+
+GRPOConfig:                      # Phase 2
+  steps: 200
+  batch_size: 32               # prompts B per update
+  G: 8                         # completions per prompt
+  lr: 1.0e-5
+  kl_coef: 0.01                # small KL-to-reference penalty (lowers omega variance)
+  clip: null                   # no importance-ratio clipping in the first version
+  lora_rank: 16
+  lora_layers: ">L"            # layers strictly greater than layer_L
+  checkpoint_every: 1
+  num_runs: 3                  # seeds; curves averaged, bands = SEM
+  seed: 290402
+
+PriceEvalConfig:                 # Phase 3
+  price_samples: [128, 512, 2048]   # N sweep for the Price estimator
+  direct_samples: 8192              # high-budget N_dir for the target direct-drift line
+  eval_prompts: 500
+
+OutputConfig:
+  results_dir: results
+  name: gsm8k_L12
