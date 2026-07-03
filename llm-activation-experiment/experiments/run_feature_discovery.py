@@ -66,11 +66,17 @@ def main():
         strength = sum(abs(e["rho_val"]) for e in pos + neg)
         LOGGER.info(f"layer {layer}: kept {len(pos)}+/{len(neg)}- val-strength={strength:.3f}")
 
-        rng = np.random.default_rng(cfg["ModelConfig"]["seed"])
+        # Controls: active features that are near-zero-rho on BOTH the discovery half
+        # (gate) AND the validation half (so a control that only looks neutral by chance
+        # on discovery, but correlates on validation, is not tracked as a "control").
+        # Rank the discovery-neutral candidates by |rho_val| and take the most neutral.
         active_lowcorr = [m for m in range(Sd.shape[1])
                           if activity[m] >= fd["min_activity"] and abs(rho_d[m]) < 0.02]
-        ctrl_ids = rng.choice(active_lowcorr, size=min(fd["n_controls"], len(active_lowcorr)),
-                              replace=False).tolist() if active_lowcorr else []
+        ctrl_val_max = fd.get("control_val_max", 0.05)
+        candidates = sorted(active_lowcorr, key=lambda m: abs(_corr(Sv[:, m], Rv)))
+        ctrl_ids = [m for m in candidates if abs(_corr(Sv[:, m], Rv)) < ctrl_val_max][:fd["n_controls"]]
+        if not ctrl_ids and candidates:      # fallback: most-neutral available if none clear the gate
+            ctrl_ids = candidates[:fd["n_controls"]]
         controls = [entry(int(m)) for m in ctrl_ids]
         nuisance = {"reward_vs_length": round(_corr(Rd, Ld), 4),
                     "reward_vs_parse": round(_corr(Rd, Pd), 4)}

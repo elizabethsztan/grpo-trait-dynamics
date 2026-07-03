@@ -70,7 +70,9 @@ def main():
 
     ckpts = sorted((out / "checkpoints").glob("step_*"), key=lambda p: int(p.name.split("_")[1]))
     rng = np.random.default_rng(cfg["ModelConfig"]["seed"] + 777)
-    N_max = max(pe["price_samples"] + [pe["direct_samples"]])
+    # Price sweep only consumes up to max(price_samples) rollouts; the direct estimate
+    # uses its own separate direct_samples draws. (Don't over-draw to direct_samples.)
+    N_price = max(pe["price_samples"])
     bs = pe.get("batch_size", 32)
 
     with open(out / "price_eval.jsonl", "w") as f:
@@ -79,8 +81,8 @@ def main():
             # price draws from pi_t (independent of the gradient rollouts) + trait scores.
             # The SAME price_draws feed logp_t and logp_tp1 so any batched-forward numerical
             # artifact is common-mode and cancels in omega = exp(logp_tp1 - logp_t).
-            price_draws = _draw(policy, eval_ex, gen, N_max, rng, bs)
-            s_price = _trait_matrix(policy, sae, layer, price_draws, all_ids, bs)   # (N_max, F)
+            price_draws = _draw(policy, eval_ex, gen, N_price, rng, bs)
+            s_price = _trait_matrix(policy, sae, layer, price_draws, all_ids, bs)   # (N_price, F)
             logp_t = _logprobs(policy, price_draws, bs)
             # direct T_t (high budget)
             direct_draws = _draw(policy, eval_ex, gen, pe["direct_samples"], rng, bs)
@@ -92,7 +94,7 @@ def main():
             s_dir_tp1 = _trait_matrix(policy, sae, layer, direct_draws2, all_ids, bs).mean(0)
             direct_drift = (s_dir_tp1 - s_dir_t)                            # (F,)
 
-            omega_full = torch.exp(logp_tp1 - logp_t)                       # (N_max,)
+            omega_full = torch.exp(logp_tp1 - logp_t)                       # (N_price,)
             for N in pe["price_samples"]:
                 w, s = omega_full[:N], s_price[:N]
                 mean_w = w.mean()

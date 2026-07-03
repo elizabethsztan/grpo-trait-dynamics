@@ -5,6 +5,18 @@ import torch.nn.functional as F
 LOGGER = logging.getLogger(__name__)
 
 
+def _exact_span(comp, eos):
+    # The exact sampled action: up to and INCLUDING the terminating EOS (once the model
+    # emits EOS, generation stops and everything after is padding), or all emitted tokens
+    # if generation was truncated at max_new_tokens (no EOS). pad_token_id == eos_token_id
+    # for this model, so we detect the FIRST EOS rather than stripping trailing pads --
+    # stripping trailing pads would drop the real terminating EOS and make omega the
+    # ratio of the prefix probability (omitting the EOS-token importance factor).
+    hit = (comp == eos).nonzero()
+    end = (hit[0].item() + 1) if len(hit) else comp.shape[0]
+    return comp[:end].detach().cpu()
+
+
 def sample_completions(policy, prompt_ids, G, gen_cfg):
     device = policy.model.device
     batch = prompt_ids.unsqueeze(0).to(device).expand(G, -1)
@@ -20,15 +32,8 @@ def sample_completions(policy, prompt_ids, G, gen_cfg):
             pad_token_id=policy.tokenizer.pad_token_id,
         )
     plen = prompt_ids.shape[-1]
-    pad = policy.tokenizer.pad_token_id
-    # Exact sampled span per row, trailing pad stripped (keeps EOS if present).
-    completions = []
-    for row in out:
-        comp = row[plen:]
-        keep = (comp != pad).nonzero()
-        end = (keep[-1].item() + 1) if len(keep) else 0
-        completions.append(comp[:end].detach().cpu())
-    return completions
+    eos = policy.tokenizer.eos_token_id
+    return [_exact_span(row[plen:], eos) for row in out]
 
 
 def sample_completions_batch(policy, prompt_ids_list, gen_cfg):
@@ -36,8 +41,7 @@ def sample_completions_batch(policy, prompt_ids_list, gen_cfg):
     # generate() call. Prompts are LEFT-padded so all rows begin generating at the same
     # index; verified numerically identical to per-prompt generation for this SSM-hybrid
     # model (leading pads do not pollute the recurrent state). Returns list[Tensor] of the
-    # exact sampled spans (trailing pad stripped; pad==eos so a trailing EOS is stripped,
-    # matching the serial sample_completions convention).
+    # exact sampled spans (up to and including the terminating EOS; see _exact_span).
     device = policy.model.device
     pad = policy.tokenizer.pad_token_id
     L = max(x.shape[0] for x in prompt_ids_list)
@@ -53,13 +57,9 @@ def sample_completions_batch(policy, prompt_ids_list, gen_cfg):
             top_k=(gen_cfg["top_k"] or 0), max_new_tokens=gen_cfg["max_new_tokens"],
             pad_token_id=pad,
         )
-    completions = []
-    for row in out:
-        comp = row[L:]                      # new tokens start after the left-padded prompt block
-        keep = (comp != pad).nonzero()
-        end = (keep[-1].item() + 1) if len(keep) else 0
-        completions.append(comp[:end].detach().cpu())
-    return completions
+    eos = policy.tokenizer.eos_token_id
+    # new tokens start after the left-padded prompt block (index L)
+    return [_exact_span(row[L:], eos) for row in out]
 
 
 def _token_logprobs(policy, prompt_ids, completion_ids):
