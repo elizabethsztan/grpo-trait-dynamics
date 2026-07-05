@@ -2,7 +2,7 @@
 #SBATCH --partition ampere
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
-#SBATCH --time=02:00:00
+#SBATCH --time=06:00:00
 #SBATCH --job-name=pilot_train
 #SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/pilot_train_%j.out
 

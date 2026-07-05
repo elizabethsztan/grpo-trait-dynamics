@@ -23,10 +23,39 @@ def plot_from_jsonl(jsonl_path, out_dir):
     if not rows:
         return
     N_max = max(r["N"] for r in rows)
-    feats = sorted({r["feature_id"] for r in rows})
+    present = {r["feature_id"] for r in rows}
     colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
+    # Prediction = the omega_bar-corrected covariance form (Adil-style); fall back to
+    # the naive "price" for old runs that predate the cov field.
+    pred_of = lambda r: r.get("cov", r["price"])
 
-    # grid_price: cumulative observed (direct) vs predicted (price) at N_max, per feature
+    # Feature labels + panel order from features.json (same dir), if available. Its
+    # positive/negative lists are ranked by reward-correlation (rank 1 = strongest), so
+    # "+#3 (rho=0.33)" = 3rd most reward-correlated feature; "-#1" = most anti-correlated.
+    labels = {}
+    fpath = Path(jsonl_path).parent / "features.json"
+    if fpath.exists():
+        fj = json.load(open(fpath))
+        for i, e in enumerate(fj.get("positive", [])):
+            labels[e["feature_id"]] = (f"+#{i + 1}", e.get("rho_val"))
+        for i, e in enumerate(fj.get("negative", [])):
+            labels[e["feature_id"]] = (f"−#{i + 1}", e.get("rho_val"))
+        for e in fj.get("controls", []):
+            labels[e["feature_id"]] = ("ctrl", e.get("rho_val"))
+        order = ([e["feature_id"] for e in fj.get("positive", [])]
+                 + [e["feature_id"] for e in fj.get("negative", [])]
+                 + [e["feature_id"] for e in fj.get("controls", [])])
+        feats = [f for f in order if f in present] + sorted(present - set(order))
+    else:
+        feats = sorted(present)
+
+    def _title(fid, fr):
+        lab, rho = labels.get(fid, (None, None))
+        if lab is None:
+            return f"feat {fid}{' (ctrl)' if (fr and fr[0]['is_control']) else ''}"
+        return f"feat {fid}  {lab}" + (f" (ρ={rho:+.2f})" if rho is not None else "")
+
+    # grid_price: cumulative observed (direct) vs predicted (cov) at N_max, per feature
     n = len(feats); cols = min(5, n); rows_g = int(np.ceil(n / cols))
     fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g), squeeze=False)
     for ax, fid in zip(axes.flat, feats):
@@ -34,11 +63,10 @@ def plot_from_jsonl(jsonl_path, out_dir):
         fr.sort(key=lambda r: r["step"])
         steps = [r["step"] for r in fr]
         obs = np.cumsum([r["direct_drift"] for r in fr])
-        pred = np.cumsum([r["price"] for r in fr])
-        ctrl = fr[0]["is_control"] if fr else False
+        pred = np.cumsum([pred_of(r) for r in fr])
         ax.plot(steps, obs, color=colors[0], marker="o", ms=3, label="observed ΔT")
-        ax.plot(steps, pred, color=colors[1], marker="s", ms=3, label="Price")
-        ax.set_title(f"feat {fid}{' (ctrl)' if ctrl else ''}", fontsize=9)
+        ax.plot(steps, pred, color=colors[1], marker="s", ms=3, label="Price (cov)")
+        ax.set_title(_title(fid, fr), fontsize=9)
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     for ax in axes.flat[len(feats):]:
         ax.set_visible(False)
@@ -49,6 +77,31 @@ def plot_from_jsonl(jsonl_path, out_dir):
         plt.savefig(out_dir / f"grid_price.{ext}", dpi=150)
     plt.close(fig)
 
+    # price_scatter: pooled predicted (cov) vs observed (direct) per (feature, transition)
+    # at N_max -- the single clearest validation view. y=x is perfect agreement.
+    fig, ax = plt.subplots(figsize=(4.6, 4.4))
+    rN = [r for r in rows if r["N"] == N_max]
+    obs_t = np.array([r["direct_drift"] for r in rN if not r["is_control"]])
+    prd_t = np.array([pred_of(r) for r in rN if not r["is_control"]])
+    obs_c = np.array([r["direct_drift"] for r in rN if r["is_control"]])
+    prd_c = np.array([pred_of(r) for r in rN if r["is_control"]])
+    lim = float(np.abs(np.concatenate([obs_t, prd_t, [0.0]])).max()) * 1.1
+    ax.plot([-lim, lim], [-lim, lim], ls="--", lw=0.8, color="grey", zorder=0)
+    ax.axhline(0, lw=0.5, color="grey", zorder=0); ax.axvline(0, lw=0.5, color="grey", zorder=0)
+    if len(obs_c):
+        ax.scatter(obs_c, prd_c, s=18, color="lightgrey", edgecolor="grey", label="control", zorder=2)
+    ax.scatter(obs_t, prd_t, s=20, color=colors[1], alpha=0.8, label="tracked", zorder=3)
+    if obs_t.std() > 0:
+        r_ = np.corrcoef(obs_t, prd_t)[0, 1]; sl = np.polyfit(obs_t, prd_t, 1)[0]
+        ax.set_title(f"predicted vs observed ΔT (N={N_max})\ncorr={r_:.2f}  slope={sl:.2f}", fontsize=11)
+    ax.set_xlabel("observed ΔT (direct)"); ax.set_ylabel("predicted ΔT (Price, cov)")
+    ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim); ax.set_aspect("equal")
+    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    plt.tight_layout()
+    for ext in ("png", "pdf"):
+        plt.savefig(out_dir / f"price_scatter.{ext}", dpi=150)
+    plt.close(fig)
+
     # price_convergence: final-step price vs N, one line per feature, dashed = direct
     fig, ax = plt.subplots(figsize=(5, 4))
     last_step = max(r["step"] for r in rows)
@@ -56,7 +109,7 @@ def plot_from_jsonl(jsonl_path, out_dir):
         fr = [r for r in rows if r["feature_id"] == fid and r["step"] == last_step]
         fr.sort(key=lambda r: r["N"])
         Ns = [r["N"] for r in fr]
-        ax.plot(Ns, [r["price"] for r in fr], marker="o", ms=3, color=colors[i % len(colors)])
+        ax.plot(Ns, [pred_of(r) for r in fr], marker="o", ms=3, color=colors[i % len(colors)])
         ax.axhline(fr[-1]["direct_drift"], ls="--", lw=0.8, color=colors[i % len(colors)])
     ax.set_xscale("log"); ax.set_xlabel("Price sample budget N"); ax.set_ylabel("final-step estimate")
     plt.tight_layout()

@@ -98,8 +98,10 @@ def main():
             for N in pe["price_samples"]:
                 w, s = omega_full[:N], s_price[:N]
                 mean_w = w.mean()
-                price = (w[:, None] * s).mean(0) - s.mean(0)                # (F,)
-                cov = (w[:, None] * s).mean(0) - mean_w * s.mean(0)
+                ws = (w[:, None] * s).mean(0)                               # (F,)
+                price = ws - s.mean(0)                       # naive: assumes omega_bar = 1
+                cov = ws - mean_w * s.mean(0)                # raw covariance (omega_bar-corrected)
+                sn = (w[:, None] * s).sum(0) / w.sum() - s.mean(0)   # Hajek self-normalized
                 ess = float((w.sum() ** 2) / (w ** 2).sum())
                 for fi, fid in enumerate(feat_ids + ctrl_ids):
                     f.write(json.dumps({
@@ -108,11 +110,13 @@ def main():
                         "direct_drift": round(float(direct_drift[fi]), 4),
                         "price": round(float(price[fi]), 4),
                         "cov": round(float(cov[fi]), 4),
+                        "price_sn": round(float(sn[fi]), 4),
                         "mean_omega": round(float(mean_w), 4),
                         "omega_var": round(float(w.var()), 4),
                         "omega_max": round(float(w.max()), 4),
                         "ess": round(ess, 2),
                     }) + "\n")
+            f.flush()   # persist each transition's rows so a time-kill can't lose them
             LOGGER.info(f"step {t}->{t+1} mean_omega={float(omega_full.mean()):.3f} "
                         f"ess@max={float((omega_full.sum()**2)/(omega_full**2).sum()):.1f}")
     LOGGER.info(f"done -> {out}/price_eval.jsonl")
