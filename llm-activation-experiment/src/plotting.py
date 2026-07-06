@@ -57,7 +57,13 @@ def plot_from_jsonl(jsonl_path, out_dir):
 
     # grid_price: cumulative observed (direct) vs predicted (cov) at N_max, per feature
     n = len(feats); cols = min(5, n); rows_g = int(np.ceil(n / cols))
-    fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g), squeeze=False)
+    # sharey='row': one y-scale per row (rows are grouped positive / negative / control),
+    # so features are comparable within a group and each group uses its natural range --
+    # per-panel autoscale otherwise magnifies each control's sampling noise to fill its
+    # frame and reads as a false "signal", while a single global scale squashes controls
+    # to invisibility against the larger negative-feature drifts.
+    fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g),
+                             squeeze=False, sharey="row")
     for ax, fid in zip(axes.flat, feats):
         fr = [r for r in rows if r["feature_id"] == fid and r["N"] == N_max]
         fr.sort(key=lambda r: r["step"])

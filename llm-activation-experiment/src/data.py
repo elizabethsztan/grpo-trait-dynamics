@@ -30,17 +30,28 @@ def _gold_from_answer(answer_field):
     return answer_field.split("####")[-1].strip().replace(",", "")
 
 
+def _load_split(name, seed):
+    # openai/gsm8k is the canonical parquet-backed dataset (no remote code needed).
+    ds = load_dataset("openai/gsm8k", "main", split=name).shuffle(seed=seed)
+    return [{"question": r["question"], "gold": _gold_from_answer(r["answer"])} for r in ds]
+
+
 def load_gsm8k_splits(cfg):
     data_cfg = cfg["DataConfig"]
     seed = cfg["ModelConfig"]["seed"]
-    # openai/gsm8k is the canonical parquet-backed dataset (no remote code needed).
-    ds = load_dataset("openai/gsm8k", "main", split="train").shuffle(seed=seed)
-    examples = [{"question": r["question"], "gold": _gold_from_answer(r["answer"])} for r in ds]
     n_train, n_feat, n_eval = data_cfg["n_train"], data_cfg["n_feat"], data_cfg["n_eval"]
+    # GSM8K ships only train (7473) and test (1319) -- no official val. To keep the
+    # Price eval reviewer-proof, `train` and `feat` are disjoint slices of the official
+    # TRAIN split, and `eval` is drawn from the official TEST split (never trained on).
+    train_pool = _load_split("train", seed)
+    test_pool = _load_split("test", seed)
+    assert n_train + n_feat <= len(train_pool), f"n_train+n_feat={n_train + n_feat} > train {len(train_pool)}"
+    assert n_eval <= len(test_pool), f"n_eval={n_eval} > test {len(test_pool)}"
     splits = {
-        "train": examples[:n_train],
-        "feat": examples[n_train:n_train + n_feat],
-        "eval": examples[n_train + n_feat:n_train + n_feat + n_eval],
+        "train": train_pool[:n_train],
+        "feat": train_pool[n_train:n_train + n_feat],
+        "eval": test_pool[:n_eval],
     }
-    LOGGER.info(f"splits: train={len(splits['train'])} feat={len(splits['feat'])} eval={len(splits['eval'])}")
+    LOGGER.info(f"splits: train={len(splits['train'])} feat={len(splits['feat'])} "
+                f"eval={len(splits['eval'])} (eval from official test split)")
     return splits

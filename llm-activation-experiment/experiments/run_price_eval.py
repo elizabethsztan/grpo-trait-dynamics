@@ -52,6 +52,12 @@ def _logprobs(policy, draws, bs):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--config", required=True)
+    # --out-suffix: write price_eval<suffix>.jsonl / plots<suffix>/ so repeated Phase-3
+    # sweeps on the same checkpoints don't clobber each other.
+    # --max-transitions: cap the number of adjacent checkpoint pairs evaluated (0 = all);
+    # set to 1 for a cheap single-pair N-convergence diagnostic.
+    ap.add_argument("--out-suffix", default="")
+    ap.add_argument("--max-transitions", type=int, default=0)
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = yaml.safe_load(open(args.config))
@@ -75,8 +81,12 @@ def main():
     N_price = max(pe["price_samples"])
     bs = pe.get("batch_size", 32)
 
-    with open(out / "price_eval.jsonl", "w") as f:
-        for t in range(len(ckpts) - 1):
+    n_trans = len(ckpts) - 1
+    if args.max_transitions > 0:
+        n_trans = min(n_trans, args.max_transitions)
+    jsonl_path = out / f"price_eval{args.out_suffix}.jsonl"
+    with open(jsonl_path, "w") as f:
+        for t in range(n_trans):
             policy.load_lora(ckpts[t])
             # price draws from pi_t (independent of the gradient rollouts) + trait scores.
             # The SAME price_draws feed logp_t and logp_tp1 so any batched-forward numerical
@@ -119,11 +129,12 @@ def main():
             f.flush()   # persist each transition's rows so a time-kill can't lose them
             LOGGER.info(f"step {t}->{t+1} mean_omega={float(omega_full.mean()):.3f} "
                         f"ess@max={float((omega_full.sum()**2)/(omega_full**2).sum()):.1f}")
-    LOGGER.info(f"done -> {out}/price_eval.jsonl")
+    LOGGER.info(f"done -> {jsonl_path}")
 
     from src.plotting import plot_from_jsonl
-    plot_from_jsonl(out / "price_eval.jsonl", out / "plots")
-    LOGGER.info(f"saved plots to {out}/plots")
+    plots_dir = out / f"plots{args.out_suffix}"
+    plot_from_jsonl(jsonl_path, plots_dir)
+    LOGGER.info(f"saved plots to {plots_dir}")
 
 
 if __name__ == "__main__":
