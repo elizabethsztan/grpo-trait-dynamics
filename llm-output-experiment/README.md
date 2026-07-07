@@ -13,7 +13,7 @@ uv sync
 This path validates data generation and writes calibration examples without loading a model.
 
 ```bash
-cd llm-experiments
+cd llm-output-experiment
 uv run python calibrate_base_model.py --config configs/qwen25_05b_sycophancy_smoke.yaml --dry-run
 ```
 
