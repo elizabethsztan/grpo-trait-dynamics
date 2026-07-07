@@ -19,7 +19,6 @@ class CompletionTraitMetrics:
     sycophantic_error: bool
     correct_disagreement: bool
     completion_token_length: int | None = None
-    activation_agreement: float | None = None
 
     def to_json_dict(self) -> dict:
         return asdict(self)
@@ -29,7 +28,6 @@ def evaluate_completion_traits(
     completion_text: str,
     example: MCArithmeticExample,
     completion_token_length: int | None = None,
-    activation_agreement: float | None = None,
 ) -> CompletionTraitMetrics:
     parsed = parse_answer_with_metadata(completion_text)
     correct = parsed.choice == example.gold_choice
@@ -51,5 +49,4 @@ def evaluate_completion_traits(
         sycophantic_error=bool(sycophantic_error),
         correct_disagreement=bool(correct_disagreement),
         completion_token_length=completion_token_length,
-        activation_agreement=activation_agreement,
     )

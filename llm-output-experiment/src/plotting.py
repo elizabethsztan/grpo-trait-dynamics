@@ -127,9 +127,4 @@ def plot_run(run_dir: str | Path) -> list[Path]:
             plots_dir / f"output_agreement_price_check_{distribution}",
             metrics, distribution, "output_agreement", "agreement_rate",
         )
-
-    written += _price_plot(
-        plots_dir / "activation_agreement_price_check_eval_wrong_hint",
-        metrics, "eval_wrong_hint", "activation_agreement", "mean_activation_agreement_score",
-    )
     return written

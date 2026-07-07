@@ -7,7 +7,6 @@ import random
 
 import numpy as np
 
-from src.activation_probe import build_activation_probe, make_probe_pairs
 from src.config import load_config, save_config
 from src.data import generate_examples
 from src.generation import configure_tokenizer_and_model
@@ -19,7 +18,7 @@ from src.grpo import (
     sample_rollouts,
     train_grpo_step,
 )
-from src.lora_freeze import apply_lora_above_hook
+from src.lora_freeze import apply_lora
 from src.price import CumulativePriceTracker
 
 
@@ -49,10 +48,6 @@ def _write_jsonl_line(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as f:
         f.write(json.dumps(payload) + "\n")
-
-
-def _activation_scores_to_numpy(scores):
-    return scores.detach().float().cpu().numpy()
 
 
 def _record_step_for_update(update_index: int) -> int:
@@ -109,7 +104,7 @@ def _generate_train_examples(config: dict, step: int):
     )
 
 
-def _make_price_rollouts(model, tokenizer, config, step: int, device, activation_probe):
+def _make_price_rollouts(model, tokenizer, config, step: int, device):
     run_cfg = config["RunConfig"]
     data_cfg = config["DataConfig"]
     price_cfg = config["PriceConfig"]
@@ -130,28 +125,9 @@ def _make_price_rollouts(model, tokenizer, config, step: int, device, activation
             config["GenerationConfig"],
             completions_per_prompt=int(price_cfg.get("completions_per_prompt", 1)),
             device=device,
-            activation_probe=activation_probe,
         )
         rollouts[dist_name] = attach_logprobs(model, tokenizer, samples, device, "pre_logprob")
     return rollouts
-
-
-def _activation_invariance(model, tokenizer, probe, cfg, data_cfg, seed: int, device, baseline=None):
-    if probe is None:
-        return None, None
-    pairs = make_probe_pairs(
-        int(cfg.get("invariance_bank_size", 16)),
-        seed=seed + 700000,
-        difficulty=data_cfg.get("difficulty", "medium"),
-        hint_phrases=data_cfg.get("train_hint_phrases"),
-    )
-    prompts = [pair.agree_prompt for pair in pairs]
-    completions = [pair.completion for pair in pairs]
-    scores = _activation_scores_to_numpy(probe.score_texts(model, tokenizer, prompts, completions, device))
-    if baseline is None:
-        return scores, {"max_abs": 0.0, "mean_abs": 0.0}
-    delta = np.abs(scores - baseline)
-    return baseline, {"max_abs": float(delta.max()), "mean_abs": float(delta.mean())}
 
 
 def run_training(config: dict) -> Path:
@@ -163,8 +139,6 @@ def run_training(config: dict) -> Path:
     train_cfg = config["TrainConfig"]
     price_cfg = config["PriceConfig"]
     data_cfg = config["DataConfig"]
-    activation_cfg = dict(config["ActivationProbeConfig"])
-    activation_cfg["hook_layer"] = config["LoRAConfig"]["hook_layer"]
 
     run_dir = Path(run_cfg["results_dir"]) / run_cfg["name"]
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -189,20 +163,12 @@ def run_training(config: dict) -> Path:
     configure_tokenizer_and_model(tokenizer, model)
     if model_cfg.get("use_gradient_checkpointing", False):
         model.gradient_checkpointing_enable()
-    model = apply_lora_above_hook(model, config["LoRAConfig"]).to(device)
+    model = apply_lora(model, config["LoRAConfig"]).to(device)
     optimizer = torch.optim.AdamW(
         [param for param in model.parameters() if param.requires_grad],
         lr=float(train_cfg["learning_rate"]),
         weight_decay=float(train_cfg.get("weight_decay", 0.0)),
     )
-
-    activation_probe = None
-    invariance_baseline = None
-    if activation_cfg.get("enabled", True):
-        activation_probe = build_activation_probe(model, tokenizer, activation_cfg, data_cfg, int(run_cfg["seed"]), device)
-        invariance_baseline, _ = _activation_invariance(
-            model, tokenizer, activation_probe, activation_cfg, data_cfg, int(run_cfg["seed"]), device
-        )
 
     price_tracker = CumulativePriceTracker()
     rng = random.Random(int(run_cfg["seed"]) + 4242)
@@ -219,44 +185,18 @@ def run_training(config: dict) -> Path:
                 config["GenerationConfig"],
                 device,
                 step,
-                activation_probe=activation_probe,
             )
             for dist_name, values in observed.items():
                 observed_baselines.setdefault(
                     dist_name,
-                    {
-                        "agreement_rate": values.get("agreement_rate", 0.0),
-                        "mean_activation_agreement_score": values.get("mean_activation_agreement_score", 0.0),
-                    },
+                    {"agreement_rate": values.get("agreement_rate", 0.0)},
                 )
                 values["output_agreement_observed_drift"] = (
                     values.get("agreement_rate", 0.0) - observed_baselines[dist_name]["agreement_rate"]
                 )
-                values["activation_agreement_observed_drift"] = (
-                    values.get("mean_activation_agreement_score", 0.0)
-                    - observed_baselines[dist_name]["mean_activation_agreement_score"]
-                )
         return observed
 
-    def eval_invariance_for_step(step: int, baseline):
-        activation_invariance = None
-        if activation_probe is not None and step % int(activation_cfg.get("invariance_every", 1)) == 0:
-            baseline, activation_invariance = _activation_invariance(
-                model,
-                tokenizer,
-                activation_probe,
-                activation_cfg,
-                data_cfg,
-                int(run_cfg["seed"]),
-                device,
-                baseline=baseline,
-            )
-            if run_cfg.get("debug", False) and activation_invariance["max_abs"] > float(activation_cfg["invariance_assert_threshold"]):
-                raise AssertionError(f"activation invariance failed: {activation_invariance}")
-        return baseline, activation_invariance
-
     observed = eval_observed_for_step(0)
-    invariance_baseline, activation_invariance = eval_invariance_for_step(0, invariance_baseline)
     _write_jsonl_line(
         metrics_path,
         {
@@ -264,14 +204,13 @@ def run_training(config: dict) -> Path:
             "train": {},
             "price": {},
             "observed_eval": observed,
-            "activation_invariance": activation_invariance or {},
         },
     )
 
     for update_idx in range(int(train_cfg["num_steps"])):
         price_rollouts = {}
         if price_cfg.get("enabled", True):
-            price_rollouts = _make_price_rollouts(model, tokenizer, config, update_idx, device, activation_probe)
+            price_rollouts = _make_price_rollouts(model, tokenizer, config, update_idx, device)
 
         train_examples = _generate_train_examples(config, update_idx)
         train_summary, train_samples = train_grpo_step(
@@ -284,7 +223,6 @@ def run_training(config: dict) -> Path:
             eps=float(train_cfg.get("eps", 1e-8)),
             max_grad_norm=float(train_cfg.get("max_grad_norm", 1.0)),
             device=device,
-            activation_probe=activation_probe,
         )
         _write_rollout_examples(run_dir, update_idx, train_samples, config["ExampleLoggingConfig"])
 
@@ -303,17 +241,14 @@ def run_training(config: dict) -> Path:
             reused = attach_logprobs(model, tokenizer, train_samples, device, "post_logprob")
             diag = compute_price_block(reused, CumulativePriceTracker(), "train_high_hint_reused", rng, shuffled=False)
             train_summary["reused_train_rollout_cov_output_agreement"] = diag.get("output_agreement", {}).get("cov_step", 0.0)
-            train_summary["reused_train_rollout_cov_activation_agreement"] = diag.get("activation_agreement", {}).get("cov_step", 0.0)
 
         step = _record_step_for_update(update_idx)
         observed = eval_observed_for_step(step)
-        invariance_baseline, activation_invariance = eval_invariance_for_step(step, invariance_baseline)
         record = {
             "step": step,
             "train": train_summary,
             "price": price_block,
             "observed_eval": observed,
-            "activation_invariance": activation_invariance or {},
         }
         _write_jsonl_line(metrics_path, record)
 

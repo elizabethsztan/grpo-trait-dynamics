@@ -55,19 +55,6 @@ def make_examples_for_distribution(
     )
 
 
-def score_activation_for_samples(model, tokenizer, activation_probe, samples: list[RolloutSample], device) -> list[float | None]:
-    if activation_probe is None or not samples:
-        return [None for _ in samples]
-    scores = activation_probe.score_texts(
-        model,
-        tokenizer,
-        [sample.example.prompt_text for sample in samples],
-        [sample.generated.completion_text for sample in samples],
-        device,
-    )
-    return [float(score) for score in scores.detach().cpu()]
-
-
 def sample_rollouts(
     model,
     tokenizer,
@@ -75,7 +62,6 @@ def sample_rollouts(
     generation_cfg: dict,
     completions_per_prompt: int,
     device,
-    activation_probe=None,
 ) -> list[RolloutSample]:
     samples: list[RolloutSample] = []
     for example in examples:
@@ -99,24 +85,6 @@ def sample_rollouts(
                     ),
                 )
             )
-
-    activation_scores = score_activation_for_samples(model, tokenizer, activation_probe, samples, device)
-    if activation_probe is not None:
-        samples = [
-            RolloutSample(
-                example=sample.example,
-                generated=sample.generated,
-                traits=evaluate_completion_traits(
-                    sample.generated.completion_text,
-                    sample.example,
-                    completion_token_length=sample.generated.completion_token_length,
-                    activation_agreement=score,
-                ),
-                pre_logprob=sample.pre_logprob,
-                post_logprob=sample.post_logprob,
-            )
-            for sample, score in zip(samples, activation_scores)
-        ]
     return samples
 
 
@@ -130,7 +98,6 @@ def train_grpo_step(
     eps: float,
     max_grad_norm: float,
     device,
-    activation_probe=None,
 ) -> tuple[dict, list[RolloutSample]]:
     import torch
 
@@ -141,7 +108,6 @@ def train_grpo_step(
         generation_cfg,
         completions_per_prompt=group_size,
         device=device,
-        activation_probe=activation_probe,
     )
     rewards = np.asarray([sample.traits.reward for sample in samples], dtype=float).reshape(len(examples), group_size)
     advantages = compute_group_advantages(rewards, eps=eps).reshape(-1)
@@ -202,11 +168,6 @@ def compute_price_block(samples: list[RolloutSample], tracker: CumulativePriceTr
     traits = {
         "output_agreement": np.asarray([sample.traits.output_agreement for sample in samples], dtype=float),
     }
-    if any(sample.traits.activation_agreement is not None for sample in samples):
-        traits["activation_agreement"] = np.asarray(
-            [sample.traits.activation_agreement or 0.0 for sample in samples],
-            dtype=float,
-        )
 
     block = {}
     for trait_name, trait_values in traits.items():
@@ -234,7 +195,6 @@ def observed_eval(
     generation_cfg: dict,
     device,
     step: int,
-    activation_probe=None,
 ) -> dict:
     results = {}
     for name, dist_cfg in data_cfg["eval_distributions"].items():
@@ -253,7 +213,6 @@ def observed_eval(
             generation_cfg,
             completions_per_prompt=int(observed_cfg.get("completions_per_prompt", 1)),
             device=device,
-            activation_probe=activation_probe,
         )
         results[name] = summarize_trait_metrics(sample.traits for sample in samples)
     return results

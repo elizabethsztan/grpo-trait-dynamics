@@ -20,7 +20,6 @@ DEFAULT_CONFIG = {
         "use_gradient_checkpointing": False,
     },
     "LoRAConfig": {
-        "hook_layer": 12,
         "r": 8,
         "lora_alpha": 16,
         "lora_dropout": 0.0,
@@ -80,15 +79,6 @@ DEFAULT_CONFIG = {
         "eval_every": 1,
         "prompts_per_distribution": 4,
         "completions_per_prompt": 1,
-    },
-    "ActivationProbeConfig": {
-        "enabled": True,
-        "num_probe_pairs": 32,
-        "normalization_pairs": 32,
-        "pooling": "mean_completion_tokens",
-        "invariance_bank_size": 16,
-        "invariance_every": 1,
-        "invariance_assert_threshold": 1.0e-5,
     },
     "ExampleLoggingConfig": {
         "enabled": True,

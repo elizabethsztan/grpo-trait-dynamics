@@ -12,7 +12,6 @@ ModelConfig:
   use_gradient_checkpointing: false
 
 LoRAConfig:
-  hook_layer: 12
   r: 8
   lora_alpha: 16
   lora_dropout: 0.0
@@ -86,12 +85,3 @@ ObservedEvalConfig:
   eval_every: 5
   prompts_per_distribution: 512
   completions_per_prompt: 1
-
-ActivationProbeConfig:
-  enabled: true
-  num_probe_pairs: 512
-  normalization_pairs: 512
-  pooling: mean_completion_tokens
-  invariance_bank_size: 128
-  invariance_every: 5
-  invariance_assert_threshold: 1.0e-5
