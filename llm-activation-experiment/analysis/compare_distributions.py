@@ -45,6 +45,18 @@ def _labels(out):
     return lab
 
 
+def _feature_order(out):
+    # positive, then negative, then controls -- so a 5-col grid puts each group on its
+    # own row (matches grid_price and lets sharey='row' scale controls independently).
+    fp = out / "features.json"
+    if not fp.exists():
+        return []
+    fj = json.load(open(fp))
+    return ([e["feature_id"] for e in fj.get("positive", [])]
+            + [e["feature_id"] for e in fj.get("negative", [])]
+            + [e["feature_id"] for e in fj.get("controls", [])])
+
+
 def _cumulatives(jsonl_path):
     # {feature_id: (x(T+1,), direct_cum, cov_cum)}; x uses step_end (fallback step+1).
     rows = [json.loads(l) for l in open(jsonl_path)]
@@ -76,39 +88,69 @@ def main():
 
     new = _cumulatives(out / args.new_jsonl)
     ref = _cumulatives(out / args.ref_jsonl)
-    fids = [args.feature] if args.feature is not None else sorted(new)
+    order = _feature_order(out)
+    feats = ([args.feature] if args.feature is not None
+             else [f for f in order if f in new] + sorted(set(new) - set(order)))
     band_dir = out / "plots_crossdist"
     band_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"{'feat':>6}  {'label':16}  {'Q1 corr':>8}  {'Q2 corr':>8}")
-    for fid in fids:
-        if fid not in new:
-            raise SystemExit(f"feature {fid} not in {args.new_jsonl}")
+    def _series(fid):
         xN, dN, cN = new[fid]               # D': x, direct, cov
         xR, dR, cR = ref[fid]               # GSM8K: x, direct, cov
         cR_at_N = np.interp(xN, xR, cR)     # GSM8K cov cumulative sampled at D' steps
         # Q1: cov_D' tracks direct_D'.  Q2: cov_GSM8K tracks direct_D'.
         q1 = np.corrcoef(cN, dN)[0, 1] if dN.std() > 0 else float("nan")
         q2 = np.corrcoef(cR_at_N, dN)[0, 1] if dN.std() > 0 else float("nan")
-        print(f"{fid:6d}  {labels.get(fid,''):16}  {q1:8.3f}  {q2:8.3f}")
+        return xN, dN, cN, xR, cR, q1, q2
 
-        fig, ax = plt.subplots(figsize=(5.4, 4.1))
+    def _draw(ax, fid, s, small=False):
+        xN, dN, cN, xR, cR, _, _ = s
         ax.axhline(0, ls="--", lw=0.6, color="grey", zorder=0)
-        ax.plot(xN, dN, color="tab:blue", lw=2.4, marker="o", ms=4,
-                label=f"direct ΔT ({args.new_label})")
-        ax.plot(xN, cN, color="tab:green", ls="--", lw=1.7, marker="s", ms=3,
+        ax.plot(xN, dN, color="tab:blue", lw=2.0 if small else 2.4, marker="o",
+                ms=3 if small else 4, label=f"direct ΔT ({args.new_label})")
+        ax.plot(xN, cN, color="tab:green", ls="--", lw=1.5 if small else 1.7,
+                marker="s", ms=2.5 if small else 3,
                 label=f"cov ({args.new_label}, in-dist)  [Q1]")
-        ax.plot(xR, cR, color="tab:orange", ls=":", lw=2.2,
+        ax.plot(xR, cR, color="tab:orange", ls=":", lw=1.8 if small else 2.2,
                 label=f"cov ({args.ref_label}, cross-dist)  [Q2]")
-        ax.set_xlabel("GRPO step t"); ax.set_ylabel("cumulative trait change")
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-        ax.set_title(f"feat {fid}  {labels.get(fid,'')}", fontsize=11)
+        ax.set_title(f"feat {fid}  {labels.get(fid,'')}", fontsize=9 if small else 11)
+
+    print(f"{'feat':>6}  {'label':16}  {'Q1 corr':>8}  {'Q2 corr':>8}")
+    for fid in feats:
+        if fid not in new:
+            raise SystemExit(f"feature {fid} not in {args.new_jsonl}")
+        s = _series(fid)
+        print(f"{fid:6d}  {labels.get(fid,''):16}  {s[5]:8.3f}  {s[6]:8.3f}")
+
+    # Single feature -> one panel; otherwise the full grid (positive/negative/control
+    # rows), one shared legend, matching grid_price's layout.
+    if args.feature is not None:
+        fig, ax = plt.subplots(figsize=(5.4, 4.1))
+        _draw(ax, args.feature, _series(args.feature))
+        ax.set_xlabel("GRPO step t"); ax.set_ylabel("cumulative trait change")
         ax.legend(frameon=False)
         plt.tight_layout()
         for ext in ("png", "pdf"):
-            plt.savefig(band_dir / f"feat_{fid}.{ext}", dpi=150)
+            plt.savefig(band_dir / f"feat_{args.feature}.{ext}", dpi=150)
         plt.close(fig)
-    print(f"done -> {band_dir}")
+        print(f"done -> {band_dir}/feat_{args.feature}.png")
+        return
+
+    n = len(feats); cols = min(5, n); rows_g = int(np.ceil(n / cols))
+    fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g),
+                             squeeze=False, sharey="row")
+    for ax, fid in zip(axes.flat, feats):
+        _draw(ax, fid, _series(fid), small=True)
+    for ax in axes.flat[len(feats):]:
+        ax.set_visible(False)
+    axes.flat[0].legend(frameon=False, fontsize=7)
+    fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
+    plt.tight_layout()
+    for ext in ("png", "pdf"):
+        plt.savefig(band_dir / f"grid_crossdist.{ext}", dpi=150)
+    plt.close(fig)
+    print(f"done -> {band_dir}/grid_crossdist.png")
 
 
 if __name__ == "__main__":
