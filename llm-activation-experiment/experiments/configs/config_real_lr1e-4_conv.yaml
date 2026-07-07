@@ -4,7 +4,7 @@
 #   sbatch slurm/real_price.sh config_real_lr1e-4_conv --dump-pool --out-suffix _conv
 # -> draws max(price_samples)=1024 rollouts/transition once, saves omega + s per rollout to
 #    results/real_lr1e-4/pool_conv.npz (direct estimator skipped entirely). Then, offline:
-#   uv run python -m experiments.bands_from_pool --config .../config_real_lr1e-4_conv.yaml \
+#   uv run python -m analysis.bands_from_pool --config .../config_real_lr1e-4_conv.yaml \
 #       --pool-suffix _conv --n-list 16,32,64,128,256,512
 # -> bootstrap error bands per feature (N=1024 full pool = reference line). Pool=1024 gives
 #    the heavy-tailed omega enough support for trustworthy bootstrap variance at large n.

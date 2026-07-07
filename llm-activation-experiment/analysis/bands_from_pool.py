@@ -8,7 +8,7 @@ figure -- one panel per sample budget n. Each panel overlays:
     resamples of n rollouts (WITH replacement) from the N-pool at each transition.
 Bands tighten as n grows -- that shrinkage IS the convergence. Pure CPU/numpy, no GPU.
 
-  uv run python -m experiments.bands_from_pool --config experiments/configs/<cfg>.yaml \
+  uv run python -m analysis.bands_from_pool --config experiments/configs/<cfg>.yaml \
       --pool-suffix _conv --n-list 16,32,64,128,256,512 --reps 500
 """
 import argparse, json

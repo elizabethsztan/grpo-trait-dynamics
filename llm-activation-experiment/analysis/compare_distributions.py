@@ -10,7 +10,7 @@ Both read the per-transition jsonls written by run_price_eval (--out-suffix dist
 runs). Cumulative curves use each row's step_end for a correct x-axis (falls back to step+1
 for pre-step_end jsonls, valid at stride 1).
 
-  uv run python -m experiments.compare_distributions \
+  uv run python -m analysis.compare_distributions \
       --config experiments/configs/config_real_lr1e-4.yaml \
       --new-jsonl price_eval_svamp.jsonl --ref-jsonl price_eval.jsonl \
       --new-label svamp --ref-label gsm8k --feature 25562

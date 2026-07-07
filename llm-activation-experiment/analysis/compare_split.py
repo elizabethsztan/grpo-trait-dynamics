@@ -7,7 +7,7 @@ in-distribution Price estimator), both read from the headline eval price_eval.js
 If cov from a *different* split (e.g. train) threads direct_eval, cov from that split's
 rollouts predicts the held-out trait drift.
 
-  uv run python -m experiments.compare_split --config experiments/configs/config_real_lr1e-4.yaml \
+  uv run python -m analysis.compare_split --config experiments/configs/config_real_lr1e-4.yaml \
       --pool-suffix _train --feature 25562
 """
 import argparse, json
