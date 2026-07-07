@@ -36,6 +36,30 @@ def _load_split(name, seed):
     return [{"question": r["question"], "gold": _gold_from_answer(r["answer"])} for r in ds]
 
 
+def _load_svamp(seed):
+    # SVAMP: simpler single-/few-step math word problems from a different source than GSM8K
+    # (grade-school family, numeric answers our verifier handles). Used ONLY as an OOD
+    # measurement distribution -- never trained on -- so we pool all 1000 problems.
+    import random
+    rows = []
+    for split in ("train", "test"):
+        ds = load_dataset("ChilleD/SVAMP", split=split)
+        rows += [{"question": r["question_concat"], "gold": str(r["Answer"])} for r in ds]
+    random.Random(seed).shuffle(rows)
+    return rows
+
+
+def load_prompts(cfg, source):
+    # Dispatch a prompt source to a list of {"question","gold"}. GSM8K splits ('eval','train',
+    # 'feat') go through load_gsm8k_splits; 'svamp' is the OOD math distribution for the
+    # cross-distribution Price test (measure trait drift on D' with our GSM8K-trained ckpts).
+    if source in ("eval", "train", "feat"):
+        return load_gsm8k_splits(cfg)[source]
+    if source == "svamp":
+        return _load_svamp(cfg["ModelConfig"]["seed"])
+    raise ValueError(f"unknown prompt source '{source}'")
+
+
 def load_gsm8k_splits(cfg):
     data_cfg = cfg["DataConfig"]
     seed = cfg["ModelConfig"]["seed"]

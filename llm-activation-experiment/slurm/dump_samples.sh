@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=00:20:00
 #SBATCH --job-name=dump_samples
-#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/dump_samples_%j.out
+#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/slurm_logs/dump_samples_%j.out
 
 # Dump a few real (prompt, action, reward) rollouts for the docs.
 # Usage: sbatch dump_samples.sh config_pilot_lr1e-4

@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=12:00:00
 #SBATCH --job-name=real_price
-#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/real_price_%j.out
+#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/slurm_logs/real_price_%j.out
 
 # Phase 3 ONLY on the banked real_lr1e-4 checkpoints. Full-trajectory light pass
 # (~6.4h). Optional args are passed through to run_price_eval:

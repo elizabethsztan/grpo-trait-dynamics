@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=03:30:00
 #SBATCH --job-name=pilot_price
-#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/pilot_price_%j.out
+#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/slurm_logs/pilot_price_%j.out
 
 # Phase 3 ONLY, on the checkpoints already produced by the earlier training jobs.
 # Usage: sbatch lr_pilot_price.sh config_pilot_lr3e-5

@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=01:00:00
 #SBATCH --job-name=pilot_disc
-#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/pilot_disc_%j.out
+#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/slurm_logs/pilot_disc_%j.out
 
 # Shared, lr-independent Phase 0 + Phase 1. Writes features.json under the
 # 1e-5 run's dir and copies it to the other two so the training jobs can run

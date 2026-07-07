@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=06:00:00
 #SBATCH --job-name=pilot_train
-#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/pilot_train_%j.out
+#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/slurm_logs/pilot_train_%j.out
 
 # Phase 2 + Phase 3 for ONE lr config. Usage:
 #   sbatch --dependency=afterok:<disc_jobid> lr_pilot_train.sh config_pilot_lr3e-5

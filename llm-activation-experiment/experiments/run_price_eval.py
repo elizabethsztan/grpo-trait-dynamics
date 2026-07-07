@@ -6,7 +6,7 @@ from src.sae import load_sae
 from src.trait import collect_feature_scores_batch
 from src.logprob import sequence_logprob_batch
 from src.grpo import sample_completions_batch
-from src.data import load_gsm8k_splits, build_prompt
+from src.data import load_prompts, build_prompt
 
 LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +50,39 @@ def _logprobs(policy, draws, bs):
     return torch.tensor(out)
 
 
+def _dump_pool(policy, sae, layer, eval_ex, gen, ckpts, n_trans, N, bs, rng,
+               feat_ids, ctrl_ids, all_ids, out, suffix):
+    # Raw per-rollout pool for offline bootstrap bands. Per transition we draw N rollouts
+    # from pi_t ONCE and save omega = pi_{t+1}/pi_t and trait scores s; smaller-n bands are
+    # then obtained offline by resampling n-with-replacement from this pool, and the full-N
+    # estimate serves as the low-variance reference line. Direct estimator skipped by design.
+    omega_all, s_all, steps = [], [], []
+    for t in range(n_trans):
+        step_t, step_tp1 = (int(ckpts[t].name.split("_")[1]),
+                            int(ckpts[t + 1].name.split("_")[1]))
+        policy.load_lora(ckpts[t])
+        draws = _draw(policy, eval_ex, gen, N, rng, bs)
+        s = _trait_matrix(policy, sae, layer, draws, all_ids, bs)           # (N, F)
+        logp_t = _logprobs(policy, draws, bs)
+        policy.load_lora(ckpts[t + 1])
+        logp_tp1 = _logprobs(policy, draws, bs)
+        omega = torch.exp(logp_tp1 - logp_t)                               # (N,)
+        omega_all.append(omega.numpy()); s_all.append(s.numpy()); steps.append(step_t)
+        ess = float((omega.sum() ** 2) / (omega ** 2).sum())
+        LOGGER.info(f"step {step_t}->{step_tp1} pool N={N} mean_omega={float(omega.mean()):.3f} ess={ess:.1f}")
+    path = out / f"pool{suffix}.npz"
+    ids = feat_ids + ctrl_ids
+    # ckpt_steps = the n_trans+1 checkpoint step numbers spanned (for a real-step x-axis).
+    ckpt_steps = [int(ckpts[t].name.split("_")[1]) for t in range(n_trans + 1)]
+    np.savez(path,
+             omega=np.stack(omega_all),                                    # (T, N)
+             s=np.stack(s_all),                                            # (T, N, F)
+             feat_ids=np.array(ids),
+             is_control=np.array([f in ctrl_ids for f in ids]),
+             steps=np.array(steps), ckpt_steps=np.array(ckpt_steps), layer=layer)
+    LOGGER.info(f"dumped pool -> {path}  (T={len(steps)}, N={N}, F={len(ids)})")
+
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--config", required=True)
     # --out-suffix: write price_eval<suffix>.jsonl / plots<suffix>/ so repeated Phase-3
@@ -58,6 +91,22 @@ def main():
     # set to 1 for a cheap single-pair N-convergence diagnostic.
     ap.add_argument("--out-suffix", default="")
     ap.add_argument("--max-transitions", type=int, default=0)
+    # --dump-pool: per transition, draw max(price_samples) rollouts from pi_t once and save
+    # the raw per-rollout omega and trait scores s to pool<suffix>.npz -- for offline
+    # bootstrap error bands (resample n from the pool). Skips the direct estimator entirely
+    # (bands come from the pool; the full-N estimate is the low-variance reference line).
+    ap.add_argument("--dump-pool", action="store_true")
+    # --prompt-split: which split the price/direct rollouts are drawn from. Default 'eval'
+    # (held-out test) reproduces the headline. 'train' draws from the trained-on data, so
+    # cov estimates the trait drift on the TRAIN distribution -- overlay it on the eval trait
+    # curve to test whether cov from training-distribution rollouts predicts held-out drift.
+    ap.add_argument("--prompt-split", default="eval", choices=["eval", "train", "feat", "svamp"])
+    # --step-stride: evaluate every K-th checkpoint instead of every one, so each transition
+    # spans K GRPO steps (omega = pi_{t+K}/pi_t). Fewer, coarser transitions -> cheaper and
+    # fewer plot points; the Price identity still holds (a bigger jump just makes omega more
+    # heavy-tailed / lowers ESS). The final checkpoint is always kept so the trait curve
+    # reaches the trained endpoint (the last interval may then be shorter than K).
+    ap.add_argument("--step-stride", type=int, default=1)
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = yaml.safe_load(open(args.config))
@@ -72,9 +121,17 @@ def main():
     # No attach_lora here: the first load_lora(ckpt) wraps the base from the saved
     # adapter config, and subsequent load_lora calls swap adapter weights in place.
     sae = load_sae(cfg["ModelConfig"]["sae_repo"], layer, "cuda")
-    eval_ex = load_gsm8k_splits(cfg)["eval"][: pe["eval_prompts"]]
+    eval_ex = load_prompts(cfg, args.prompt_split)[: pe["eval_prompts"]]
+    LOGGER.info(f"drawing price/direct rollouts from split='{args.prompt_split}' ({len(eval_ex)} prompts)")
 
-    ckpts = sorted((out / "checkpoints").glob("step_*"), key=lambda p: int(p.name.split("_")[1]))
+    all_ckpts = sorted((out / "checkpoints").glob("step_*"), key=lambda p: int(p.name.split("_")[1]))
+    stride = max(1, args.step_stride)
+    ckpts = all_ckpts[::stride]
+    if ckpts[-1] != all_ckpts[-1]:          # always reach the trained endpoint
+        ckpts.append(all_ckpts[-1])
+    if stride > 1:
+        LOGGER.info(f"step-stride={stride}: {len(ckpts) - 1} transitions over checkpoint steps "
+                    f"{[int(c.name.split('_')[1]) for c in ckpts]}")
     rng = np.random.default_rng(cfg["ModelConfig"]["seed"] + 777)
     # Price sweep only consumes up to max(price_samples) rollouts; the direct estimate
     # uses its own separate direct_samples draws. (Don't over-draw to direct_samples.)
@@ -84,9 +141,17 @@ def main():
     n_trans = len(ckpts) - 1
     if args.max_transitions > 0:
         n_trans = min(n_trans, args.max_transitions)
+
+    if args.dump_pool:
+        _dump_pool(policy, sae, layer, eval_ex, gen, ckpts, n_trans, N_price, bs, rng,
+                   feat_ids, ctrl_ids, all_ids, out, args.out_suffix)
+        return
+
     jsonl_path = out / f"price_eval{args.out_suffix}.jsonl"
     with open(jsonl_path, "w") as f:
         for t in range(n_trans):
+            step_t, step_tp1 = (int(ckpts[t].name.split("_")[1]),
+                                int(ckpts[t + 1].name.split("_")[1]))
             policy.load_lora(ckpts[t])
             # price draws from pi_t (independent of the gradient rollouts) + trait scores.
             # The SAME price_draws feed logp_t and logp_tp1 so any batched-forward numerical
@@ -115,7 +180,7 @@ def main():
                 ess = float((w.sum() ** 2) / (w ** 2).sum())
                 for fi, fid in enumerate(feat_ids + ctrl_ids):
                     f.write(json.dumps({
-                        "step": t, "feature_id": int(fid),
+                        "step": step_t, "step_end": step_tp1, "feature_id": int(fid),
                         "is_control": fid in ctrl_ids, "N": N,
                         "direct_drift": round(float(direct_drift[fi]), 4),
                         "price": round(float(price[fi]), 4),
@@ -127,7 +192,7 @@ def main():
                         "ess": round(ess, 2),
                     }) + "\n")
             f.flush()   # persist each transition's rows so a time-kill can't lose them
-            LOGGER.info(f"step {t}->{t+1} mean_omega={float(omega_full.mean()):.3f} "
+            LOGGER.info(f"step {step_t}->{step_tp1} mean_omega={float(omega_full.mean()):.3f} "
                         f"ess@max={float((omega_full.sum()**2)/(omega_full**2).sum()):.1f}")
     LOGGER.info(f"done -> {jsonl_path}")
 

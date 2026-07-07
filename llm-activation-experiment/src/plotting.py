@@ -108,20 +108,9 @@ def plot_from_jsonl(jsonl_path, out_dir):
         plt.savefig(out_dir / f"price_scatter.{ext}", dpi=150)
     plt.close(fig)
 
-    # price_convergence: final-step price vs N, one line per feature, dashed = direct
-    fig, ax = plt.subplots(figsize=(5, 4))
-    last_step = max(r["step"] for r in rows)
-    for i, fid in enumerate(feats):
-        fr = [r for r in rows if r["feature_id"] == fid and r["step"] == last_step]
-        fr.sort(key=lambda r: r["N"])
-        Ns = [r["N"] for r in fr]
-        ax.plot(Ns, [pred_of(r) for r in fr], marker="o", ms=3, color=colors[i % len(colors)])
-        ax.axhline(fr[-1]["direct_drift"], ls="--", lw=0.8, color=colors[i % len(colors)])
-    ax.set_xscale("log"); ax.set_xlabel("Price sample budget N"); ax.set_ylabel("final-step estimate")
-    plt.tight_layout()
-    for ext in ("png", "pdf"):
-        plt.savefig(out_dir / f"price_convergence.{ext}", dpi=150)
-    plt.close(fig)
+    # (N-convergence is shown properly by experiments/bands_from_pool.py -- bootstrap bands
+    # over n=16..512 with the N=1024 reference line. A per-N line here is degenerate when the
+    # config sweeps a single price budget, so it's intentionally not plotted.)
 
     # omega_diagnostics: mean_omega and ess vs step (at N_max)
     fr = [r for r in rows if r["N"] == N_max and r["feature_id"] == feats[0]]

@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=06:00:00
 #SBATCH --job-name=real_train
-#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/real_train_%j.out
+#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/slurm_logs/real_train_%j.out
 
 # Phase 2 ONLY -- bank the checkpoint trajectory. Phase 3 is run separately
 # (slurm/lr_pilot_price.sh) so its N budgets can be toggled without retraining.

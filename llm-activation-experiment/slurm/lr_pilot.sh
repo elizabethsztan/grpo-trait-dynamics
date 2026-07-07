@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --time=05:00:00
 #SBATCH --job-name=lr_pilot
-#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/lr_pilot_%j.out
+#SBATCH --output=/cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment/results/slurm_logs/lr_pilot_%j.out
 
 # lr pilot: sweep GRPO lr in {1e-5, 3e-5, 1e-4}, everything else fixed.
 # Phase 0/1 are lr-independent -> run once and share features.json across runs.
