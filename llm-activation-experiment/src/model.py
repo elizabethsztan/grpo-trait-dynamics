@@ -9,9 +9,12 @@ MODEL NOTES (confirmed via Task 5 against Qwen/Qwen3.5-2B-Base):
     (self_attn.{q,k,v,o}_proj); the rest are `linear_attention`
     (linear_attn.{in_proj_a/b/qkv/z, out_proj} + a conv1d). Both types have
     mlp.{gate,up,down}_proj. All projections are nn.Linear.
-  - LoRA target = EVERY nn.Linear leaf under layers strictly > L (introspected,
-    not hardcoded), so the trait score at layer L stays frozen (Delta s = 0).
-    The frozen-trait assertion in Phase 2 is the runtime backstop.
+  - LoRA target (lora_layers=">L", the default) = EVERY nn.Linear leaf under
+    layers strictly > L (introspected, not hardcoded), so the trait score at
+    layer L stays frozen (Delta s = 0). The frozen-trait assertion in Phase 2 is
+    the runtime backstop. With lora_layers="all" the target extends down to layer
+    0, so the trait itself moves (Delta s != 0) and the Price transmission term
+    E[omega*Delta s] is nonzero -- used to measure how much that term drives ΔT.
 """
 import logging
 from contextlib import contextmanager
@@ -40,12 +43,20 @@ class Policy:
         # The module whose OUTPUT is the SAE-trained activation (post-block residual).
         return self._base().get_submodule(f"model.layers.{layer}")
 
-    def attach_lora(self, layer_L, rank):
-        # LoRA strictly downstream of the hook: every nn.Linear under layers > L.
+    def attach_lora(self, layer_L, rank, layers=">L"):
+        # layers=">L": LoRA strictly downstream of the hook (every nn.Linear under
+        #   layers > L), so the trait at L is frozen (Delta s = 0) and Price's
+        #   transmission term vanishes -- the headline setup.
+        # layers="all": extend the target down to layer 0, so the trait moves with
+        #   the policy (Delta s != 0) and the transmission term E[omega*Delta s] is
+        #   nonzero. The Phase-2 frozen assertion must be skipped for this mode.
+        if layers not in (">L", "all"):
+            raise ValueError(f"lora_layers must be '>L' or 'all', got {layers!r}")
         n_layers = self.n_layers()
         base = self._base()
+        start = 0 if layers == "all" else layer_L + 1
         target_modules = []
-        for i in range(layer_L + 1, n_layers):
+        for i in range(start, n_layers):
             layer = base.get_submodule(f"model.layers.{i}")
             for name, mod in layer.named_modules():
                 if isinstance(mod, nn.Linear):
@@ -54,8 +65,8 @@ class Policy:
                          target_modules=target_modules, bias="none")
         self.model = get_peft_model(self.model, cfg)
         self._has_lora = True
-        LOGGER.info(f"attached LoRA rank={rank} to layers {layer_L + 1}..{n_layers - 1} "
-                    f"({len(target_modules)} Linear modules)")
+        LOGGER.info(f"attached LoRA rank={rank} (lora_layers={layers}) to layers "
+                    f"{start}..{n_layers - 1} ({len(target_modules)} Linear modules)")
 
     @contextmanager
     def disable_lora(self):

@@ -15,6 +15,11 @@ set -eo pipefail
 CFG=${1:-config_real_lr1e-4}; shift || true
 export HF_HOME=/cephfs/store/gr-mc2473/eszt2/.hf-cache
 export UV_CACHE_DIR=/cephfs/store/gr-mc2473/eszt2/.uv-cache
+# Redirect Triton's kernel-compile cache and any XDG cache off $HOME -- the home
+# cephfs quota is only 4 GiB and Triton writes new kernels there by default, which
+# blows the quota (Errno 122) mid-run. The store area is effectively unbounded.
+export TRITON_CACHE_DIR=/cephfs/store/gr-mc2473/eszt2/.triton-cache
+export XDG_CACHE_HOME=/cephfs/store/gr-mc2473/eszt2/.cache
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 cd /cephfs/store/gr-mc2473/eszt2/trait-dynamics/grpo-trait-dynamics/llm-activation-experiment
 

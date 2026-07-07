@@ -25,8 +25,9 @@ def main():
     out = Path(cfg["OutputConfig"]["results_dir"]) / cfg["OutputConfig"]["name"]
     layer = json.load(open(out / "features.json"))["layer_L"]
 
+    lora_layers = grpo_cfg.get("lora_layers", ">L")
     policy = load_policy(cfg, "cuda")
-    policy.attach_lora(layer, grpo_cfg["lora_rank"])
+    policy.attach_lora(layer, grpo_cfg["lora_rank"], lora_layers)
     sae = load_sae(cfg["ModelConfig"]["sae_repo"], layer, "cuda")
     opt = torch.optim.Adam([p for p in policy.model.parameters() if p.requires_grad], lr=grpo_cfg["lr"])
     splits = load_gsm8k_splits(cfg)
@@ -48,7 +49,10 @@ def main():
             batch = [(train[i], policy.tokenizer(build_prompt(train[i]["question"], n_shots=gen["n_shots"]),
                      return_tensors="pt").input_ids[0]) for i in idx]
             m = grpo_step(policy, opt, batch, gen, cfg)
-            _assert_frozen(policy, sae, layer, probe_pid, probe_cid, probe_before)
+            # Only meaningful when LoRA is downstream-only; with lora_layers="all"
+            # the trait is INTENDED to move, so the frozen backstop is skipped.
+            if lora_layers == ">L":
+                _assert_frozen(policy, sae, layer, probe_pid, probe_cid, probe_before)
             m["step"] = step + 1
             mf.write(json.dumps({k: (round(v, 4) if isinstance(v, float) else v) for k, v in m.items()}) + "\n")
             mf.flush()

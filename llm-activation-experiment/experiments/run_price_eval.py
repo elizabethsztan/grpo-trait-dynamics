@@ -107,6 +107,12 @@ def main():
     # heavy-tailed / lowers ESS). The final checkpoint is always kept so the trait curve
     # reaches the trained endpoint (the last interval may then be shorter than K).
     ap.add_argument("--step-stride", type=int, default=1)
+    # --transmission: also recompute the trait s on the SAME price draws under pi_{t+1}
+    # and log the Price transmission term E[omega*(s_{t+1}-s_t)] per feature. Zero by
+    # construction for frozen (lora_layers=">L") runs; nonzero when LoRA trains through
+    # layer L. Full decomposition then reads ΔT ≈ cov (selection) + transmission. Costs
+    # one extra SAE-scoring pass per transition (no extra generation).
+    ap.add_argument("--transmission", action="store_true")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = yaml.safe_load(open(args.config))
@@ -165,6 +171,10 @@ def main():
 
             policy.load_lora(ckpts[t + 1])
             logp_tp1 = _logprobs(policy, price_draws, bs)
+            # Re-score the SAME price draws under pi_{t+1}: byte-identical completions, so
+            # ds = s_{t+1}(a) - s_t(a) isolates the trait change from the weights <=L moving.
+            s_price_tp1 = (_trait_matrix(policy, sae, layer, price_draws, all_ids, bs)
+                           if args.transmission else None)
             direct_draws2 = _draw(policy, eval_ex, gen, pe["direct_samples"], rng, bs)
             s_dir_tp1 = _trait_matrix(policy, sae, layer, direct_draws2, all_ids, bs).mean(0)
             direct_drift = (s_dir_tp1 - s_dir_t)                            # (F,)
@@ -178,8 +188,11 @@ def main():
                 cov = ws - mean_w * s.mean(0)                # raw covariance (omega_bar-corrected)
                 sn = (w[:, None] * s).sum(0) / w.sum() - s.mean(0)   # Hajek self-normalized
                 ess = float((w.sum() ** 2) / (w ** 2).sum())
+                # transmission = E[omega*(s_{t+1}-s_t)] on the same draws; 0 for frozen runs.
+                trans = ((w[:, None] * (s_price_tp1[:N] - s)).mean(0)
+                         if s_price_tp1 is not None else None)
                 for fi, fid in enumerate(feat_ids + ctrl_ids):
-                    f.write(json.dumps({
+                    row = {
                         "step": step_t, "step_end": step_tp1, "feature_id": int(fid),
                         "is_control": fid in ctrl_ids, "N": N,
                         "direct_drift": round(float(direct_drift[fi]), 4),
@@ -190,7 +203,10 @@ def main():
                         "omega_var": round(float(w.var()), 4),
                         "omega_max": round(float(w.max()), 4),
                         "ess": round(ess, 2),
-                    }) + "\n")
+                    }
+                    if trans is not None:
+                        row["transmission"] = round(float(trans[fi]), 4)
+                    f.write(json.dumps(row) + "\n")
             f.flush()   # persist each transition's rows so a time-kill can't lose them
             LOGGER.info(f"step {step_t}->{step_tp1} mean_omega={float(omega_full.mean()):.3f} "
                         f"ess@max={float((omega_full.sum()**2)/(omega_full**2).sum()):.1f}")

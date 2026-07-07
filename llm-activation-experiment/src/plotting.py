@@ -108,6 +108,48 @@ def plot_from_jsonl(jsonl_path, out_dir):
         plt.savefig(out_dir / f"price_scatter.{ext}", dpi=150)
     plt.close(fig)
 
+    # price_decomp: only when run_price_eval was given --transmission (all-layers runs).
+    # Tests the full Price identity  ΔT = cov (selection) + E[ω·Δs] (transmission).
+    # For a frozen-trait run transmission≈0 and this collapses onto price_scatter, so
+    # it's only drawn when the term is actually present.
+    if any("transmission" in r for r in rN):
+        sig = [r for r in rN if not r["is_control"]]
+        obs = np.array([r["direct_drift"] for r in sig])
+        sel = np.array([pred_of(r) for r in sig])                       # cov = selection
+        trn = np.array([r["transmission"] for r in sig])
+        full = sel + trn                                                # full prediction
+        fig, (a1, a2) = plt.subplots(1, 2, figsize=(9.2, 4.5))
+
+        # left: predicted vs observed -- selection-only vs selection+transmission.
+        lim = float(np.abs(np.concatenate([obs, sel, full, [0.0]])).max()) * 1.1
+        a1.plot([-lim, lim], [-lim, lim], ls="--", lw=0.8, color="grey", zorder=0)
+        a1.axhline(0, lw=0.5, color="grey", zorder=0); a1.axvline(0, lw=0.5, color="grey", zorder=0)
+        a1.scatter(obs, sel, s=22, facecolors="none", edgecolors=colors[1], linewidths=1.0,
+                   label="selection only (cov)", zorder=2)
+        a1.scatter(obs, full, s=22, color=colors[0], alpha=0.8,
+                   label="selection + transmission", zorder=3)
+        if obs.std() > 0:
+            r_sel = np.corrcoef(obs, sel)[0, 1]; r_full = np.corrcoef(obs, full)[0, 1]
+            a1.set_title(f"predicted vs observed ΔT (N={N_max})\n"
+                         f"corr: cov={r_sel:.2f} → cov+trans={r_full:.2f}", fontsize=10.5)
+        a1.set_xlabel("observed ΔT (direct)"); a1.set_ylabel("predicted ΔT")
+        a1.set_xlim(-lim, lim); a1.set_ylim(-lim, lim); a1.set_aspect("equal")
+        a1.legend(frameon=False, fontsize=8.5, loc="upper left")
+
+        # right: how big is the transmission term relative to the selection term.
+        m = float(np.abs(np.concatenate([sel, trn, [0.0]])).max()) * 1.1
+        a2.axhline(0, lw=0.5, color="grey", zorder=0); a2.axvline(0, lw=0.5, color="grey", zorder=0)
+        a2.scatter(sel, trn, s=22, color=colors[2], alpha=0.8, zorder=3)
+        share = float(np.abs(trn).mean() / (np.abs(obs).mean() + 1e-12))
+        a2.set_title(f"transmission vs selection\nmean |trans| / mean |ΔT| = {share:.2f}",
+                     fontsize=10.5)
+        a2.set_xlabel("selection  cov(ω, s)"); a2.set_ylabel("transmission  E[ω·Δs]")
+        a2.set_xlim(-m, m); a2.set_ylim(-m, m); a2.set_aspect("equal")
+        plt.tight_layout()
+        for ext in ("png", "pdf"):
+            plt.savefig(out_dir / f"price_decomp.{ext}", dpi=150)
+        plt.close(fig)
+
     # (N-convergence is shown properly by experiments/bands_from_pool.py -- bootstrap bands
     # over n=16..512 with the N=1024 reference line. A per-N line here is degenerate when the
     # config sweeps a single price budget, so it's intentionally not plotted.)
