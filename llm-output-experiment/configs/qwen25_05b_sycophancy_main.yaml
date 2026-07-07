@@ -77,14 +77,14 @@ PriceConfig:
     - train_high_hint
     - eval_balanced_hint
     - eval_wrong_hint
-  prompts_per_distribution: 32
-  completions_per_prompt: 2
+  prompts_per_distribution: 512
+  completions_per_prompt: 1
   compute_shuffled_null: true
   compute_reused_rollout_diagnostic: true
 
 ObservedEvalConfig:
   eval_every: 5
-  prompts_per_distribution: 128
+  prompts_per_distribution: 512
   completions_per_prompt: 1
 
 ActivationProbeConfig:
