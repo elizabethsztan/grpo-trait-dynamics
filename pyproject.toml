@@ -15,6 +15,9 @@ dependencies = [
     "safetensors>=0.4",
     "huggingface-hub>=0.24",
     "flash-linear-attention>=0.5.1",
+    # llm-output-experiment (sycophancy GRPO)
+    "accelerate>=0.29",
+    "tqdm>=4.66",
 ]
 
 [tool.uv]

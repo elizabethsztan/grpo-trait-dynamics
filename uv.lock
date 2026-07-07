@@ -892,6 +892,7 @@ name = "grpo-trait-dynamics"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "accelerate" },
     { name = "datasets" },
     { name = "flash-linear-attention" },
     { name = "huggingface-hub" },
@@ -903,11 +904,13 @@ dependencies = [
     { name = "pyyaml" },
     { name = "safetensors" },
     { name = "torch" },
+    { name = "tqdm" },
     { name = "transformers" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "accelerate", specifier = ">=0.29" },
     { name = "datasets", specifier = ">=2.20" },
     { name = "flash-linear-attention", specifier = ">=0.5.1" },
     { name = "huggingface-hub", specifier = ">=0.24" },
@@ -917,6 +920,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "safetensors", specifier = ">=0.4" },
     { name = "torch", specifier = ">=2.12.1" },
+    { name = "tqdm", specifier = ">=4.66" },
     { name = "transformers", specifier = ">=4.44" },
 ]
 

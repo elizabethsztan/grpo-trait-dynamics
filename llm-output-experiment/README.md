@@ -4,9 +4,8 @@ This experiment trains a small instruction-tuned LLM with outcome-only GRPO on s
 
 ## Install
 
-```bash
-uv sync
-```
+Uses the shared repo-root uv environment — no per-experiment install. Run
+everything with `uv run --no-sync` from inside this directory.
 
 ## Dry Calibration
 
@@ -14,27 +13,27 @@ This path validates data generation and writes calibration examples without load
 
 ```bash
 cd llm-output-experiment
-uv run python calibrate_base_model.py --config configs/qwen25_05b_sycophancy_smoke.yaml --dry-run
+uv run --no-sync python calibrate_base_model.py --config configs/qwen25_05b_sycophancy_smoke.yaml --dry-run
 ```
 
 ## Base-Model Calibration
 
 ```bash
-uv run python calibrate_base_model.py --config configs/qwen25_05b_sycophancy_smoke.yaml
+uv run --no-sync python calibrate_base_model.py --config configs/qwen25_05b_sycophancy_smoke.yaml
 ```
 
 ## Smoke Training
 
 ```bash
-uv run python train_grpo_price.py --config configs/qwen25_05b_sycophancy_smoke.yaml
-uv run python plot_results.py --run-dir results/sycophancy_smoke
+uv run --no-sync python train_grpo_price.py --config configs/qwen25_05b_sycophancy_smoke.yaml
+uv run --no-sync python plot_results.py --run-dir results/sycophancy_smoke
 ```
 
 ## Main Training
 
 ```bash
-uv run python train_grpo_price.py --config configs/qwen25_05b_sycophancy_main.yaml
-uv run python plot_results.py --run-dir results/sycophancy_main
+uv run --no-sync python train_grpo_price.py --config configs/qwen25_05b_sycophancy_main.yaml
+uv run --no-sync python plot_results.py --run-dir results/sycophancy_main
 ```
 
 ## Metrics And Plots
