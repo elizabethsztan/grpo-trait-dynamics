@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from src.plotting import plot_reliability_sweep, plot_run
+from src.plotting import plot_run
 
 
 def main():
@@ -14,8 +14,6 @@ def main():
     written = []
     if (run_dir / "metrics.jsonl").exists():
         written.extend(plot_run(run_dir))
-    if (run_dir / "summary.json").exists():
-        written.extend(plot_reliability_sweep(run_dir))
     for path in written:
         print(path)
 
