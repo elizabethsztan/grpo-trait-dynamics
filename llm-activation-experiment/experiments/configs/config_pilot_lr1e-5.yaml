@@ -14,4 +14,4 @@ CapabilityConfig: {n_prompts: 100, temperature: 1.0, target_success_band: [0.2, 
 FeatureDiscoveryConfig: {K: 8, candidate_layers: [12], min_activity: 0.1, top_k_each_sign: 5, val_frac: 0.5, n_controls: 5}
 GRPOConfig: {steps: 10, batch_size: 16, G: 8, lr: 1.0e-5, kl_coef: 0.01, clip: null, lora_rank: 16, lora_layers: ">L", checkpoint_every: 1, num_runs: 1, seed: 290402}
 PriceEvalConfig: {price_samples: [64, 256], direct_samples: 128, eval_prompts: 150, batch_size: 8}
-OutputConfig: {results_dir: results, name: pilot_lr1e-5}
+OutputConfig: {results_dir: results/pilots, name: pilot_lr1e-5}

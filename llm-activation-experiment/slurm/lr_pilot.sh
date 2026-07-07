@@ -22,8 +22,8 @@ uv run python -m experiments.run_feature_discovery --config $CFG/$BASE.yaml
 
 # share the discovered features with the other two lr runs
 for name in pilot_lr3e-5 pilot_lr1e-4; do
-  mkdir -p results/$name
-  cp results/pilot_lr1e-5/features.json results/$name/features.json
+  mkdir -p results/pilots/$name
+  cp results/pilots/pilot_lr1e-5/features.json results/pilots/$name/features.json
 done
 
 for cfg in config_pilot_lr1e-5 config_pilot_lr3e-5 config_pilot_lr1e-4; do

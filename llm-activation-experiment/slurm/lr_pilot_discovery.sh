@@ -21,7 +21,7 @@ echo "===== PHASE 1: feature discovery ====="
 uv run python -m experiments.run_feature_discovery --config $CFG/config_pilot_lr1e-5.yaml
 
 for name in pilot_lr3e-5 pilot_lr1e-4; do
-  mkdir -p results/$name
-  cp results/pilot_lr1e-5/features.json results/$name/features.json
+  mkdir -p results/pilots/$name
+  cp results/pilots/pilot_lr1e-5/features.json results/pilots/$name/features.json
 done
 echo "===== DISCOVERY DONE (features shared to all 3 lr dirs) ====="
