@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 
-def sequence_logprobs(model, samples, pad_token_id: int, device=None, with_grad: bool = False):
+def token_logprobs(model, samples, pad_token_id: int, device=None, with_grad: bool = False):
+    """Per-completion-token logprobs, padded to (B, max_completion_len), plus a 0/1 mask."""
     import torch
 
     if not samples:
-        return torch.empty(0, device=device)
+        empty = torch.empty(0, 0, device=device)
+        return empty, empty
 
     device = device or next(model.parameters()).device
     max_len = max(len(sample.prompt_ids) + len(sample.completion_ids) for sample in samples)
+    max_completion = max(len(sample.completion_ids) for sample in samples)
     input_ids = torch.full((len(samples), max_len), pad_token_id, dtype=torch.long, device=device)
     attention_mask = torch.zeros_like(input_ids)
 
@@ -21,15 +24,27 @@ def sequence_logprobs(model, samples, pad_token_id: int, device=None, with_grad:
     with context:
         logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
         log_probs = logits.log_softmax(dim=-1)
-        sequence_scores = []
+        rows, mask = [], torch.zeros((len(samples), max_completion), device=device, dtype=log_probs.dtype)
         for row, sample in enumerate(samples):
             prompt_len = len(sample.prompt_ids)
-            token_scores = []
-            for offset, token_id in enumerate(sample.completion_ids):
-                pos = prompt_len + offset
-                token_scores.append(log_probs[row, pos - 1, token_id])
-            if token_scores:
-                sequence_scores.append(torch.stack(token_scores).sum())
+            scores = [log_probs[row, prompt_len + offset - 1, token_id]
+                      for offset, token_id in enumerate(sample.completion_ids)]
+            if scores:
+                mask[row, : len(scores)] = 1.0
+                pad = max_completion - len(scores)
+                stacked = torch.stack(scores)
+                if pad:
+                    stacked = torch.cat([stacked, torch.zeros(pad, device=device, dtype=stacked.dtype)])
             else:
-                sequence_scores.append(torch.zeros((), device=device, dtype=log_probs.dtype))
-        return torch.stack(sequence_scores)
+                stacked = torch.zeros(max_completion, device=device, dtype=log_probs.dtype)
+            rows.append(stacked)
+        return torch.stack(rows), mask
+
+
+def sequence_logprobs(model, samples, pad_token_id: int, device=None, with_grad: bool = False):
+    import torch
+
+    if not samples:
+        return torch.empty(0, device=device)
+    tokens, mask = token_logprobs(model, samples, pad_token_id, device=device, with_grad=with_grad)
+    return (tokens * mask).sum(dim=1)

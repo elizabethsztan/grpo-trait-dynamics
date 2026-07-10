@@ -164,11 +164,15 @@ def run_training(config: dict) -> Path:
     if model_cfg.get("use_gradient_checkpointing", False):
         model.gradient_checkpointing_enable()
     model = apply_lora(model, config["LoRAConfig"]).to(device)
+    base_lr = float(train_cfg["learning_rate"])
     optimizer = torch.optim.AdamW(
         [param for param in model.parameters() if param.requires_grad],
-        lr=float(train_cfg["learning_rate"]),
+        lr=base_lr,
         weight_decay=float(train_cfg.get("weight_decay", 0.0)),
     )
+    warmup_steps = int(train_cfg.get("warmup_steps", 0) or 0)
+    clip_range = train_cfg.get("clip_range")
+    minibatch_size = train_cfg.get("minibatch_size")
 
     price_tracker = CumulativePriceTracker()
     rng = random.Random(int(run_cfg["seed"]) + 4242)
@@ -208,6 +212,13 @@ def run_training(config: dict) -> Path:
     )
 
     for update_idx in range(int(train_cfg["num_steps"])):
+        # Linear lr warmup. Clipping and the KL penalty are both inert on step 1 (ratio == 1,
+        # KL gradient == 0 at init), so a small first lr is the only lever on that step.
+        if warmup_steps > 0:
+            warmup_scale = min(1.0, (update_idx + 1) / warmup_steps)
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = base_lr * warmup_scale
+
         price_rollouts = {}
         if price_cfg.get("enabled", True):
             price_rollouts = _make_price_rollouts(model, tokenizer, config, update_idx, device)
@@ -223,6 +234,10 @@ def run_training(config: dict) -> Path:
             eps=float(train_cfg.get("eps", 1e-8)),
             max_grad_norm=float(train_cfg.get("max_grad_norm", 1.0)),
             device=device,
+            kl_coef=float(train_cfg.get("kl_coef", 0.0)),
+            clip_range=None if clip_range is None else float(clip_range),
+            minibatch_size=None if minibatch_size is None else int(minibatch_size),
+            num_policy_epochs=int(train_cfg.get("num_policy_epochs", 1)),
         )
         _write_rollout_examples(run_dir, update_idx, train_samples, config["ExampleLoggingConfig"])
 
