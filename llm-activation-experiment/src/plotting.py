@@ -83,6 +83,38 @@ def plot_from_jsonl(jsonl_path, out_dir):
         plt.savefig(out_dir / f"grid_price.{ext}", dpi=150)
     plt.close(fig)
 
+    # grid_decomp: 4-line cumulative decomposition per feature, only when the transmission
+    # term was logged (all-layers runs). Shows observed ΔT, the full prediction cov+trans
+    # (should overlay observed), and the two components cov (selection) and trans separately
+    # -- so features where transmission dominates (cov alone misses) are visible. Per-panel
+    # autoscale (NOT sharey) so small-net-drift features aren't squashed by a big one sharing
+    # the row; controls will therefore autoscale to their own noise (read the y-axis scale).
+    if any("transmission" in r for r in rows if r["N"] == N_max):
+        fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g), squeeze=False)
+        for ax, fid in zip(axes.flat, feats):
+            fr = [r for r in rows if r["feature_id"] == fid and r["N"] == N_max]
+            fr.sort(key=lambda r: r["step"])
+            steps = [r["step"] for r in fr]
+            obs = np.cumsum([r["direct_drift"] for r in fr])
+            cov = np.cumsum([pred_of(r) for r in fr])
+            tr = np.cumsum([r.get("transmission", 0.0) for r in fr])
+            ax.axhline(0, lw=0.5, color="grey", zorder=0)
+            ax.plot(steps, obs, color=colors[0], lw=2.1, marker="o", ms=3, label="observed ΔT", zorder=4)
+            ax.plot(steps, cov + tr, color=colors[2], ls="--", lw=1.6, marker="s", ms=2.5,
+                    label="cov + trans", zorder=3)
+            ax.plot(steps, cov, color=colors[1], ls=":", lw=1.6, label="cov (selection)", zorder=2)
+            ax.plot(steps, tr, color=colors[3], ls="-.", lw=1.4, label="transmission", zorder=2)
+            ax.set_title(_title(fid, fr), fontsize=9)
+            ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        for ax in axes.flat[len(feats):]:
+            ax.set_visible(False)
+        axes.flat[0].legend(frameon=False, fontsize=7)
+        fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
+        plt.tight_layout()
+        for ext in ("png", "pdf"):
+            plt.savefig(out_dir / f"grid_decomp.{ext}", dpi=150)
+        plt.close(fig)
+
     # price_scatter: pooled predicted (cov) vs observed (direct) per (feature, transition)
     # at N_max -- the single clearest validation view. y=x is perfect agreement.
     fig, ax = plt.subplots(figsize=(4.6, 4.4))
