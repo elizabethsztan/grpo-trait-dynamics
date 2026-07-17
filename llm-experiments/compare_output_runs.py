@@ -15,6 +15,8 @@ THRESHOLDS = {
     "final_agreement_abs_diff": 0.05,
     "final_accuracy_abs_diff": 0.05,
     "final_invalid_abs_diff": 0.05,
+    "final_no_hint_accuracy_abs_diff": 0.05,
+    "final_no_hint_invalid_abs_diff": 0.05,
     "final_observed_drift_abs_diff": 0.15,
     "agreement_trajectory_rmse": 0.15,
     "threshold_crossing_step_abs_diff": 10,
@@ -35,27 +37,31 @@ def load_metrics(run_dir: str | Path) -> list[dict]:
     return rows
 
 
-def _observed_series(rows: list[dict], key: str) -> list[float]:
+def _observed_series(
+    rows: list[dict],
+    key: str,
+    distribution: str = "eval_wrong_hint",
+) -> list[float]:
     by_step = {
-        row["step"]: row.get("observed_eval", {}).get("eval_wrong_hint", {})
+        row["step"]: row.get("observed_eval", {}).get(distribution, {})
         for row in rows
         if row.get("observed_eval")
     }
     missing = [step for step in EVAL_STEPS if key not in by_step.get(step, {})]
     if missing:
-        raise ValueError(f"missing eval_wrong_hint/{key} at steps {missing}")
+        raise ValueError(f"missing {distribution}/{key} at steps {missing}")
     return [float(by_step[step][key]) for step in EVAL_STEPS]
 
 
-def _price_series(rows: list[dict]) -> list[float]:
+def _price_series(rows: list[dict], trait: str = "output_agreement") -> list[float]:
     by_step = {0: 0.0}
     for row in rows:
-        block = row.get("price", {}).get("eval_wrong_hint", {}).get("output_agreement", {})
+        block = row.get("price", {}).get("eval_wrong_hint", {}).get(trait, {})
         if "cov_cum" in block:
             by_step[row["step"]] = float(block["cov_cum"])
     missing = [step for step in EVAL_STEPS if step not in by_step]
     if missing:
-        raise ValueError(f"missing cumulative output Price estimate at steps {missing}")
+        raise ValueError(f"missing cumulative {trait} Price estimate at steps {missing}")
     return [by_step[step] for step in EVAL_STEPS]
 
 
@@ -79,10 +85,16 @@ def compare_metrics(reference_rows: list[dict], candidate_rows: list[dict], labe
     cand_accuracy = _observed_series(candidate_rows, "accuracy")
     ref_invalid = _observed_series(reference_rows, "invalid_output_rate")
     cand_invalid = _observed_series(candidate_rows, "invalid_output_rate")
+    ref_no_hint_accuracy = _observed_series(reference_rows, "accuracy", "eval_no_hint")
+    cand_no_hint_accuracy = _observed_series(candidate_rows, "accuracy", "eval_no_hint")
+    ref_no_hint_invalid = _observed_series(reference_rows, "invalid_output_rate", "eval_no_hint")
+    cand_no_hint_invalid = _observed_series(candidate_rows, "invalid_output_rate", "eval_no_hint")
     ref_drift = _observed_series(reference_rows, "output_agreement_observed_drift")
     cand_drift = _observed_series(candidate_rows, "output_agreement_observed_drift")
     ref_price = _price_series(reference_rows)
     cand_price = _price_series(candidate_rows)
+    ref_shuffled_price = _price_series(reference_rows, "output_agreement_shuffled")
+    cand_shuffled_price = _price_series(candidate_rows, "output_agreement_shuffled")
     ref_crossing = _first_crossing(ref_agreement)
     cand_crossing = _first_crossing(cand_agreement)
     crossing_diff = None if ref_crossing is None or cand_crossing is None else abs(cand_crossing - ref_crossing)
@@ -91,11 +103,17 @@ def compare_metrics(reference_rows: list[dict], candidate_rows: list[dict], labe
         "final_agreement_abs_diff": abs(cand_agreement[-1] - ref_agreement[-1]),
         "final_accuracy_abs_diff": abs(cand_accuracy[-1] - ref_accuracy[-1]),
         "final_invalid_abs_diff": abs(cand_invalid[-1] - ref_invalid[-1]),
+        "final_no_hint_accuracy_abs_diff": abs(cand_no_hint_accuracy[-1] - ref_no_hint_accuracy[-1]),
+        "final_no_hint_invalid_abs_diff": abs(cand_no_hint_invalid[-1] - ref_no_hint_invalid[-1]),
+        "no_hint_accuracy_trajectory_rmse": _rmse(ref_no_hint_accuracy, cand_no_hint_accuracy),
+        "no_hint_invalid_trajectory_rmse": _rmse(ref_no_hint_invalid, cand_no_hint_invalid),
         "final_observed_drift_abs_diff": abs(cand_drift[-1] - ref_drift[-1]),
         "agreement_trajectory_rmse": _rmse(ref_agreement, cand_agreement),
         "threshold_crossing_step_abs_diff": crossing_diff,
         "final_price_abs_diff": abs(cand_price[-1] - ref_price[-1]),
         "price_trajectory_rmse": _rmse(ref_price, cand_price),
+        "final_shuffled_price_abs_diff": abs(cand_shuffled_price[-1] - ref_shuffled_price[-1]),
+        "shuffled_price_trajectory_rmse": _rmse(ref_shuffled_price, cand_shuffled_price),
         "candidate_final_price_residual": abs(cand_price[-1] - cand_drift[-1]),
     }
     gates = {
@@ -103,6 +121,10 @@ def compare_metrics(reference_rows: list[dict], candidate_rows: list[dict], labe
         "final_agreement_similarity": comparisons["final_agreement_abs_diff"] <= THRESHOLDS["final_agreement_abs_diff"],
         "final_accuracy_similarity": comparisons["final_accuracy_abs_diff"] <= THRESHOLDS["final_accuracy_abs_diff"],
         "final_invalid_similarity": comparisons["final_invalid_abs_diff"] <= THRESHOLDS["final_invalid_abs_diff"],
+        "final_no_hint_accuracy_similarity": comparisons["final_no_hint_accuracy_abs_diff"]
+        <= THRESHOLDS["final_no_hint_accuracy_abs_diff"],
+        "final_no_hint_invalid_similarity": comparisons["final_no_hint_invalid_abs_diff"]
+        <= THRESHOLDS["final_no_hint_invalid_abs_diff"],
         "final_observed_drift_similarity": comparisons["final_observed_drift_abs_diff"] <= THRESHOLDS["final_observed_drift_abs_diff"],
         "agreement_trajectory_similarity": comparisons["agreement_trajectory_rmse"] <= THRESHOLDS["agreement_trajectory_rmse"],
         "threshold_crossing_similarity": crossing_diff is not None
@@ -123,21 +145,33 @@ def compare_metrics(reference_rows: list[dict], candidate_rows: list[dict], labe
             "final_agreement": ref_agreement[-1],
             "final_accuracy": ref_accuracy[-1],
             "final_invalid_output_rate": ref_invalid[-1],
+            "final_no_hint_accuracy": ref_no_hint_accuracy[-1],
+            "final_no_hint_invalid_output_rate": ref_no_hint_invalid[-1],
             "final_observed_drift": ref_drift[-1],
             "first_agreement_0_9_step": ref_crossing,
             "final_price_cumulative": ref_price[-1],
+            "final_shuffled_price_cumulative": ref_shuffled_price[-1],
             "agreement_trajectory": ref_agreement,
             "price_trajectory": ref_price,
+            "no_hint_accuracy_trajectory": ref_no_hint_accuracy,
+            "no_hint_invalid_trajectory": ref_no_hint_invalid,
+            "shuffled_price_trajectory": ref_shuffled_price,
         },
         "candidate": {
             "final_agreement": cand_agreement[-1],
             "final_accuracy": cand_accuracy[-1],
             "final_invalid_output_rate": cand_invalid[-1],
+            "final_no_hint_accuracy": cand_no_hint_accuracy[-1],
+            "final_no_hint_invalid_output_rate": cand_no_hint_invalid[-1],
             "final_observed_drift": cand_drift[-1],
             "first_agreement_0_9_step": cand_crossing,
             "final_price_cumulative": cand_price[-1],
+            "final_shuffled_price_cumulative": cand_shuffled_price[-1],
             "agreement_trajectory": cand_agreement,
             "price_trajectory": cand_price,
+            "no_hint_accuracy_trajectory": cand_no_hint_accuracy,
+            "no_hint_invalid_trajectory": cand_no_hint_invalid,
+            "shuffled_price_trajectory": cand_shuffled_price,
         },
     }
 

@@ -1,0 +1,575 @@
+{
+  "reference_dir": "results/sycophancy_main",
+  "files": [
+    {
+      "path": "adapter/final/README.md",
+      "size": 5206,
+      "sha256": "a4ab1811b31eee6883ea13e0b1d544b835409344653839852f2a5df989268788"
+    },
+    {
+      "path": "adapter/final/adapter_config.json",
+      "size": 1195,
+      "sha256": "c9cdac2a0a4d34b14aa3410f4b84c45aeb64d5d345bea9d0688193a72dd18e4c"
+    },
+    {
+      "path": "adapter/final/adapter_model.safetensors",
+      "size": 8084992,
+      "sha256": "bffe7c04ce59eda754f1c0d0ffd9d0cf3d1e0b50eafc6784344d3ef34e6fee71"
+    },
+    {
+      "path": "config.yaml",
+      "size": 2126,
+      "sha256": "c2f4ce5506ac26bf31f2bca634212d1211c95b646d1de50d26036f8a19a2ba8a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0000.jsonl",
+      "size": 13363,
+      "sha256": "9121f57f6517f8b245c950abd0505bec36864a0861bbc082dd19a6fa9ea07fc1"
+    },
+    {
+      "path": "examples/train_rollouts_step_0001.jsonl",
+      "size": 13281,
+      "sha256": "42250d8954dbd48e9711ad9f5c4a84e541c1e778babe6945849046c6ae74b29b"
+    },
+    {
+      "path": "examples/train_rollouts_step_0002.jsonl",
+      "size": 13402,
+      "sha256": "dd0e6b5a4cd19c1d4a67804f7baf29e13f934532481bdf8bb1bf77c6abdbdf1e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0003.jsonl",
+      "size": 12982,
+      "sha256": "01bcd1533d98f64b8da725923e9cc494d9ee850ff7cb0f6d054b96b00ebaf60f"
+    },
+    {
+      "path": "examples/train_rollouts_step_0004.jsonl",
+      "size": 13123,
+      "sha256": "8d83e9f24963267e256b72a528ef323a5b91fadeacad7d653204953659d906a7"
+    },
+    {
+      "path": "examples/train_rollouts_step_0005.jsonl",
+      "size": 12973,
+      "sha256": "051aed7871067d3156a3b18b95a420ac5c083cd0ef534e30ff53b4ed97d01b1e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0006.jsonl",
+      "size": 13087,
+      "sha256": "1d4c2cc78ffcee438bbf797828047dcf0170a66c90e99799e8d01c60e4fd65bd"
+    },
+    {
+      "path": "examples/train_rollouts_step_0007.jsonl",
+      "size": 13093,
+      "sha256": "aa6974c0bf12dfde81ede29bf0053152b022068d780a76976f2415b0f0ca3f82"
+    },
+    {
+      "path": "examples/train_rollouts_step_0008.jsonl",
+      "size": 13176,
+      "sha256": "fb03c1267a2a9a9c8444fd71809bb34ff30f91a79e3d9af7e62408c70f82d9c0"
+    },
+    {
+      "path": "examples/train_rollouts_step_0009.jsonl",
+      "size": 12941,
+      "sha256": "eadb3082782ac3df51cc6257531b2651c313ba246265b71576cd2fe645bfe4aa"
+    },
+    {
+      "path": "examples/train_rollouts_step_0010.jsonl",
+      "size": 13038,
+      "sha256": "7c3df263f573251978f257887bd68cc1deff75aea891fe3b6519318598c42398"
+    },
+    {
+      "path": "examples/train_rollouts_step_0011.jsonl",
+      "size": 13323,
+      "sha256": "0683eef19c2c30e4045be4d0a99ae0d3defd8361d82c1c4f739fe7a13f685cb8"
+    },
+    {
+      "path": "examples/train_rollouts_step_0012.jsonl",
+      "size": 13143,
+      "sha256": "8364155b410cf53262cff26c27440d15dc887c5893669e6094f545f01ec8fa8e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0013.jsonl",
+      "size": 13089,
+      "sha256": "1974b1b59c3babe3d2c9d9c6de97c5e86575d3115472d8556f3ec36c61c56998"
+    },
+    {
+      "path": "examples/train_rollouts_step_0014.jsonl",
+      "size": 13047,
+      "sha256": "5ac3fc1510cb16e54da9baa6dcc1e0490340b644878a9d2588ed8648691106af"
+    },
+    {
+      "path": "examples/train_rollouts_step_0015.jsonl",
+      "size": 13300,
+      "sha256": "1d8256372c89f2c06f88281a6446bd3a991795dffc15a4166d1cdcbef169f776"
+    },
+    {
+      "path": "examples/train_rollouts_step_0016.jsonl",
+      "size": 13052,
+      "sha256": "61884d961ee3554e5e456a11a805e924664457d3636e882cc55b740baf3da030"
+    },
+    {
+      "path": "examples/train_rollouts_step_0017.jsonl",
+      "size": 12981,
+      "sha256": "48f582f69467477903a11fe08a6916ed5cb6f2d52253f43f0217023a0a6c3743"
+    },
+    {
+      "path": "examples/train_rollouts_step_0018.jsonl",
+      "size": 13413,
+      "sha256": "a9803c94cb03f61fc00034dbfb5862fdd333485fd9b89ce37fd762dcda7cefa4"
+    },
+    {
+      "path": "examples/train_rollouts_step_0019.jsonl",
+      "size": 13253,
+      "sha256": "8480c04ff7fb5bf28fc6c1da5038b5a995d80667f88d048185eecb874406af0a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0020.jsonl",
+      "size": 13495,
+      "sha256": "8103cfeedcf1a5df28be84d650ed84fd7c567ef4fc24349e61c6073ad5576d50"
+    },
+    {
+      "path": "examples/train_rollouts_step_0021.jsonl",
+      "size": 13163,
+      "sha256": "d50dfe066f36087bf6845af578e4cf6b09e0d035afa67458db1b1088b9bc24d8"
+    },
+    {
+      "path": "examples/train_rollouts_step_0022.jsonl",
+      "size": 13352,
+      "sha256": "f57da05f0a745de6b5cea6d85d45e8f917afb023d7196b6d7d98b861835f68e6"
+    },
+    {
+      "path": "examples/train_rollouts_step_0023.jsonl",
+      "size": 13198,
+      "sha256": "8bfec936c2e7ff7034fe2ed415ddcbba21a2f2a72c5653333e181e797d5d7694"
+    },
+    {
+      "path": "examples/train_rollouts_step_0024.jsonl",
+      "size": 13172,
+      "sha256": "0eae178ac74323cf260706d3ae49d88766980531ef44752ed2cec87adafaec4f"
+    },
+    {
+      "path": "examples/train_rollouts_step_0025.jsonl",
+      "size": 13159,
+      "sha256": "1b5087872edcc3aab52ffe776e1d3703754a86067fd60bcb17174af71bffaaf4"
+    },
+    {
+      "path": "examples/train_rollouts_step_0026.jsonl",
+      "size": 13153,
+      "sha256": "cdfb30305cd1dacfcad30b4300e3754f074426307964bed70ec039774f875f4c"
+    },
+    {
+      "path": "examples/train_rollouts_step_0027.jsonl",
+      "size": 12971,
+      "sha256": "81c11cb31bcebd50327df13e5a372d02a0467139644312702687ef52e47b9208"
+    },
+    {
+      "path": "examples/train_rollouts_step_0028.jsonl",
+      "size": 13070,
+      "sha256": "b78e758f564af0cc99b1a2b1c2f818dac2203047f9239966fc676f97a5f60232"
+    },
+    {
+      "path": "examples/train_rollouts_step_0029.jsonl",
+      "size": 12950,
+      "sha256": "2ced4bff2948e01e823d8eee3c3c2b3bffde2f194341a49bb779c2b16fc81d15"
+    },
+    {
+      "path": "examples/train_rollouts_step_0030.jsonl",
+      "size": 13043,
+      "sha256": "2a83790aaf4ed78960667df1997833cfcbac05184e42100ea576681cde97cdc2"
+    },
+    {
+      "path": "examples/train_rollouts_step_0031.jsonl",
+      "size": 13430,
+      "sha256": "a32f21caf9edbaf0c4fb3480f1f0ed29a503b8ae408ca698f096c0484d60cf71"
+    },
+    {
+      "path": "examples/train_rollouts_step_0032.jsonl",
+      "size": 13083,
+      "sha256": "a60e30f5f3efa902c35a85636819a29b4b8274034ca89dfdab82fc7a25a2019e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0033.jsonl",
+      "size": 13122,
+      "sha256": "1983cbe48be09f95e98d7a958f5cd7c4c4bd7dda653b201e6615ad8b2e3a0c80"
+    },
+    {
+      "path": "examples/train_rollouts_step_0034.jsonl",
+      "size": 13330,
+      "sha256": "beca089e4dc314d3c9aec506104ed955eb2f7c17db4d1ccc7724961c3bc2be21"
+    },
+    {
+      "path": "examples/train_rollouts_step_0035.jsonl",
+      "size": 13172,
+      "sha256": "ec34666c7730bdf4117afbbe4984ac8822469b18aa526213818de324024027c1"
+    },
+    {
+      "path": "examples/train_rollouts_step_0036.jsonl",
+      "size": 13078,
+      "sha256": "cf580e7ec0c91e075e006e8481039e5a5910137acdc131bdd5df1b7c5de33dda"
+    },
+    {
+      "path": "examples/train_rollouts_step_0037.jsonl",
+      "size": 13429,
+      "sha256": "dd2f21acb937ad6d63e2ce71e5c05cd7bfad6ad8726c2e58ec080dd2ccbf885e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0038.jsonl",
+      "size": 13065,
+      "sha256": "64b80dfa4ac6d9b0ffb8bd53f7e187b3ccd2e71cfdbfc1030a3c0c55fd8250de"
+    },
+    {
+      "path": "examples/train_rollouts_step_0039.jsonl",
+      "size": 12988,
+      "sha256": "d13ee40dc4c8521f95c6589a8befca1e96678bc5d2e520d45d98a2f518c46b12"
+    },
+    {
+      "path": "examples/train_rollouts_step_0040.jsonl",
+      "size": 13260,
+      "sha256": "1b3d9fc42681411a9269b740c0f24e2ddecb5a4f3eb8b60f0d3629dbe936a46e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0041.jsonl",
+      "size": 13282,
+      "sha256": "be4657ba556e05dd990c91ec7d04839d4079abdfe0f74a43b5465b208b6775d5"
+    },
+    {
+      "path": "examples/train_rollouts_step_0042.jsonl",
+      "size": 13015,
+      "sha256": "c5262ac5d20472eae6fa3898f53b5647eb3e7b0c0a2c8d970354e667cffcb51b"
+    },
+    {
+      "path": "examples/train_rollouts_step_0043.jsonl",
+      "size": 13365,
+      "sha256": "018d71e5522037397961ea2ab4ac6152401757f509b997effdfcde632892bcfb"
+    },
+    {
+      "path": "examples/train_rollouts_step_0044.jsonl",
+      "size": 13127,
+      "sha256": "3dee4cc121e3b856a11130b992f9fbe20da84ffc35b81a0db1854f9930ec28ca"
+    },
+    {
+      "path": "examples/train_rollouts_step_0045.jsonl",
+      "size": 12887,
+      "sha256": "e1b49ca2f07d08203d1b64fb38534eeebb9bfafbd3066844dbc9577c1a1a55b7"
+    },
+    {
+      "path": "examples/train_rollouts_step_0046.jsonl",
+      "size": 13279,
+      "sha256": "bf9d757ea9ca10c873630f3cc6f7d03e444e22ae9e9ea08d6750677532932683"
+    },
+    {
+      "path": "examples/train_rollouts_step_0047.jsonl",
+      "size": 12896,
+      "sha256": "8b26997e5f82ee03ee8fe9a3935ad9fe5823994a006de1c155b91bfae4f631ce"
+    },
+    {
+      "path": "examples/train_rollouts_step_0048.jsonl",
+      "size": 13198,
+      "sha256": "2a8d368475d9325337d5512a09f0ec11a6b1418531b42b2f1358a0f16f8f2d67"
+    },
+    {
+      "path": "examples/train_rollouts_step_0049.jsonl",
+      "size": 13034,
+      "sha256": "0bf23d4beb45ae3760aec6c80d02bbce0637a45dcc4ace29caa950ac46703322"
+    },
+    {
+      "path": "examples/train_rollouts_step_0050.jsonl",
+      "size": 13089,
+      "sha256": "0cfd88d65ba956870dd4c058f170b3cd56dc82c29a124a7226ca33d2bea3a1cf"
+    },
+    {
+      "path": "examples/train_rollouts_step_0051.jsonl",
+      "size": 13087,
+      "sha256": "af855639c338e7f924cddbe3c1596d2f85d90013e7e65b49e7f6205d8727a2e2"
+    },
+    {
+      "path": "examples/train_rollouts_step_0052.jsonl",
+      "size": 12987,
+      "sha256": "7f44a1cfd63cc8169b49755b08555fc9540dc74c8e29a93ec5d6eba2ed8f54e7"
+    },
+    {
+      "path": "examples/train_rollouts_step_0053.jsonl",
+      "size": 13273,
+      "sha256": "e4c9799c1c3fb5d8e570b4d550a7416862b8e4e1f2276b80c78fa4c6b93aeb27"
+    },
+    {
+      "path": "examples/train_rollouts_step_0054.jsonl",
+      "size": 13062,
+      "sha256": "60e4267bcd993bc6024113dd15c3e98386a107a8a49c12d5607453bfdc000053"
+    },
+    {
+      "path": "examples/train_rollouts_step_0055.jsonl",
+      "size": 13094,
+      "sha256": "662503fa48df476fded3eaeb6f8a9ffe3200fc9958bc84c4f598f8898f455e40"
+    },
+    {
+      "path": "examples/train_rollouts_step_0056.jsonl",
+      "size": 13228,
+      "sha256": "cfd21e6249a3f728846265f3814713f2a44ae62785f68f288231fc1bb39c9d46"
+    },
+    {
+      "path": "examples/train_rollouts_step_0057.jsonl",
+      "size": 13447,
+      "sha256": "bf36047f30d83d5a642359e2316715999cc83df6018c95dc49ca6e66ab391f13"
+    },
+    {
+      "path": "examples/train_rollouts_step_0058.jsonl",
+      "size": 13250,
+      "sha256": "fd3c5b59711f4651f5142d52eb020fffecb3db65e82b772db22b7a9f788510ce"
+    },
+    {
+      "path": "examples/train_rollouts_step_0059.jsonl",
+      "size": 13223,
+      "sha256": "ca29c1648e7af9f09112945f773807a564433591ae4ff9f952be1b5c39e7d6d0"
+    },
+    {
+      "path": "examples/train_rollouts_step_0060.jsonl",
+      "size": 13383,
+      "sha256": "6a9c9d83f6ae89851cf868bee3bbd811948b72d3a8afe81a49ad847febdac964"
+    },
+    {
+      "path": "examples/train_rollouts_step_0061.jsonl",
+      "size": 13156,
+      "sha256": "afd7e110020483f117ad00305917fbbb2b900f3bcb8dd9ecbb0dc92d4b7f9b1c"
+    },
+    {
+      "path": "examples/train_rollouts_step_0062.jsonl",
+      "size": 13485,
+      "sha256": "05f344c8a788d2691ab4d49a7299695f9ab3ca8ae56e4756be68824a67b32cec"
+    },
+    {
+      "path": "examples/train_rollouts_step_0063.jsonl",
+      "size": 13020,
+      "sha256": "0045a3700621a3a1965536a3421d9feaa24df5fe76c0cae420921394a742f107"
+    },
+    {
+      "path": "examples/train_rollouts_step_0064.jsonl",
+      "size": 12910,
+      "sha256": "98da4c3a321490b9a08a057a315a5b89266c7dfec642665daad5f9f27cdc16fa"
+    },
+    {
+      "path": "examples/train_rollouts_step_0065.jsonl",
+      "size": 13138,
+      "sha256": "cbcd91f6b01fc0c4a292b0a8d9a1f56e25306796df6c199aa770002fbf616c13"
+    },
+    {
+      "path": "examples/train_rollouts_step_0066.jsonl",
+      "size": 13106,
+      "sha256": "2b3d62fff1d167e9d291135ece5f9c49bfeea29947d99163e59a7db250341eb3"
+    },
+    {
+      "path": "examples/train_rollouts_step_0067.jsonl",
+      "size": 13306,
+      "sha256": "e83ddef542604731c68b174351ccf2ab62108534d9b755735ca4e1e75141e21a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0068.jsonl",
+      "size": 13093,
+      "sha256": "8b9b4381b8a0a48d5b2e88c8e48b5d4a04575e0120fd0255f2bc97a975f4218a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0069.jsonl",
+      "size": 13102,
+      "sha256": "198dcf7a0c53a3af1bb626ddb2b638e7f32acb737f5191f8bce64494e5040b1f"
+    },
+    {
+      "path": "examples/train_rollouts_step_0070.jsonl",
+      "size": 13009,
+      "sha256": "82a3b841b0731284306822db4892292ba3403de60ce0c03f43b003bd81625c46"
+    },
+    {
+      "path": "examples/train_rollouts_step_0071.jsonl",
+      "size": 13026,
+      "sha256": "472d259c50c28f241a001f486b48cc16f2d7a78f423785411f617cdee59b1321"
+    },
+    {
+      "path": "examples/train_rollouts_step_0072.jsonl",
+      "size": 12906,
+      "sha256": "ed64b5967981d2f1bc2319d3218204e30d263580786d70bd749fa83574fcd05c"
+    },
+    {
+      "path": "examples/train_rollouts_step_0073.jsonl",
+      "size": 13255,
+      "sha256": "0d285817e7ea36ebeba390d1e8d0bfdfd4347fbfa6dbc838e7e89f68247f489e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0074.jsonl",
+      "size": 13132,
+      "sha256": "146cf184baf921b89eb9fcc466c64ee151785d34728edd8b7a315ba21a024e45"
+    },
+    {
+      "path": "examples/train_rollouts_step_0075.jsonl",
+      "size": 13213,
+      "sha256": "15b536ed90bf76c3990c424ee9cf943bfa47d3694c27e0ffe4d2108f7338fe79"
+    },
+    {
+      "path": "examples/train_rollouts_step_0076.jsonl",
+      "size": 13243,
+      "sha256": "7b1f75ec4cecce54114069e210b8e9a4de600ca9f3c773a9ab1c4912a5629432"
+    },
+    {
+      "path": "examples/train_rollouts_step_0077.jsonl",
+      "size": 13040,
+      "sha256": "5a4bd5c3a3a5167d0ba970ea88f5f37c41c034af4f5fd04ce3cec453f85b1ca0"
+    },
+    {
+      "path": "examples/train_rollouts_step_0078.jsonl",
+      "size": 12959,
+      "sha256": "477b42089c814e39292893967ee8efe0b7864927af59db96af9241a7f9c4263a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0079.jsonl",
+      "size": 12990,
+      "sha256": "f6a6b102ced548c4d55e8c96580d7bbc6245b101fbd204b8ca0ee98842cf6c25"
+    },
+    {
+      "path": "examples/train_rollouts_step_0080.jsonl",
+      "size": 13202,
+      "sha256": "5e1080be17a6e382728d1fea747af8cbb1ed7f3790433f06f7bb6bb39102bb66"
+    },
+    {
+      "path": "examples/train_rollouts_step_0081.jsonl",
+      "size": 12952,
+      "sha256": "ea2c99c1de2880887b62b8d41fd4ce2198f8d027ba00df2b6579da60e47fa4ce"
+    },
+    {
+      "path": "examples/train_rollouts_step_0082.jsonl",
+      "size": 13028,
+      "sha256": "835e13fe1a1c2d65404678ba45fb187831907b83d0632176dd413977cbffafe6"
+    },
+    {
+      "path": "examples/train_rollouts_step_0083.jsonl",
+      "size": 13175,
+      "sha256": "55ca81411d2e73809c48119ac256e01b668e650d77e0c4a6c515d10e9485c0bf"
+    },
+    {
+      "path": "examples/train_rollouts_step_0084.jsonl",
+      "size": 13420,
+      "sha256": "12c9dff20dc4cd3f01051c4daa5aa202bad4cf14b101763a75ae44332372ee2a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0085.jsonl",
+      "size": 13320,
+      "sha256": "63c8521ba9a7e7bf7c93e2963245a21979352ee89f1bad379bcab22e1010401b"
+    },
+    {
+      "path": "examples/train_rollouts_step_0086.jsonl",
+      "size": 13310,
+      "sha256": "1ce33aa3961c2fec1b9f49d0217afa2e3a4971e6b57e65ffb92c92f82abb1fdd"
+    },
+    {
+      "path": "examples/train_rollouts_step_0087.jsonl",
+      "size": 13129,
+      "sha256": "cdb268d0c692251a7afb8d102bae353f1249ed4adb281e6bae4cf87274ed7b34"
+    },
+    {
+      "path": "examples/train_rollouts_step_0088.jsonl",
+      "size": 13264,
+      "sha256": "9f3fe6d4b9b3bee8a5872da0e3512dcc38f6917804eca2cd5ef0050a4faf71eb"
+    },
+    {
+      "path": "examples/train_rollouts_step_0089.jsonl",
+      "size": 13184,
+      "sha256": "dc645428d3c62ae343a49a90ba948e5287d07c5aa8ba77161d9f852666951195"
+    },
+    {
+      "path": "examples/train_rollouts_step_0090.jsonl",
+      "size": 13216,
+      "sha256": "b9cd11971cb5b07409eee1b654561e6fdf1ee18904174802cd581754b06b8f9b"
+    },
+    {
+      "path": "examples/train_rollouts_step_0091.jsonl",
+      "size": 12894,
+      "sha256": "08b722a60d628008c2f08ead2fe6da994bccaf60dfcd4262816ca3dfca7e8af4"
+    },
+    {
+      "path": "examples/train_rollouts_step_0092.jsonl",
+      "size": 13070,
+      "sha256": "916b07d5880028618cb115a3e108b47430e6115e9b648c0389ad8cb98567e122"
+    },
+    {
+      "path": "examples/train_rollouts_step_0093.jsonl",
+      "size": 13210,
+      "sha256": "9a0753c594a64df2c798efb7cab1f5be0d4f874506dfa17b64d409e74f6f0817"
+    },
+    {
+      "path": "examples/train_rollouts_step_0094.jsonl",
+      "size": 13305,
+      "sha256": "2162a1947f67a8ce974bf8e809c7448829529d3388c7567704151fa43fd36b1f"
+    },
+    {
+      "path": "examples/train_rollouts_step_0095.jsonl",
+      "size": 13199,
+      "sha256": "60c8e3cf95b8e319d37178a858d298c2582ec4f4f648bc410cc6f5ae0641409d"
+    },
+    {
+      "path": "examples/train_rollouts_step_0096.jsonl",
+      "size": 13202,
+      "sha256": "4997838c350bd190a499fbb1865afd54addfd2a24cb8fe59a32b04d52fcf21f2"
+    },
+    {
+      "path": "examples/train_rollouts_step_0097.jsonl",
+      "size": 13197,
+      "sha256": "12ed9825d27b0d5ca9ca479f7a129b50ff3379e317b3743dfba67ed4c998596c"
+    },
+    {
+      "path": "examples/train_rollouts_step_0098.jsonl",
+      "size": 13389,
+      "sha256": "2b0b96cd8e4c51158747f5c010f483385bb27790cea8bd42e8ecf65e62521d7e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0099.jsonl",
+      "size": 12968,
+      "sha256": "1bcaafa9c37faa87671effa7796d7caeb3ac04387ce4011c91c891da0317eb82"
+    },
+    {
+      "path": "metrics.jsonl",
+      "size": 315124,
+      "sha256": "983732575509710e39e01894f081ba0c2f5ff661eb9bf6eb32208530bf978613"
+    },
+    {
+      "path": "plots/activation_agreement_price_check_eval_wrong_hint.png",
+      "size": 69593,
+      "sha256": "ffc5874b557f0cdf0db32286c5a05039f33f6bb4ec353ec054a75105921d7a55"
+    },
+    {
+      "path": "plots/activation_invariance.png",
+      "size": 27576,
+      "sha256": "e72c2d261dedb1d4891790b47f7f96cf382c227af5e57b22c6c2ac5c4dbfb585"
+    },
+    {
+      "path": "plots/length_control.png",
+      "size": 78631,
+      "sha256": "a9ed625a4cf39ee980df9cfeac99dce7361cf3b8356fbabd2d257a453d8341d3"
+    },
+    {
+      "path": "plots/omega_diagnostics.png",
+      "size": 40312,
+      "sha256": "07cc3232f58f98a4427268643fb32d114416df040f98081d1124b8ab80a22ab6"
+    },
+    {
+      "path": "plots/output_agreement_price_check_eval_balanced_hint.png",
+      "size": 50433,
+      "sha256": "bd57eb7bbf515b6c88263e088ddbb3a0e152e2e907057aaa2304e8f4b0305203"
+    },
+    {
+      "path": "plots/output_agreement_price_check_eval_wrong_hint.png",
+      "size": 50892,
+      "sha256": "02c74a3c557d253095a692c2611b3206a56acf1a4ef87253f22547992f672fe3"
+    },
+    {
+      "path": "plots/reward_accuracy.png",
+      "size": 64275,
+      "sha256": "64c90b8309e3887fd1603e7d0364db0877f18ae58556b6363ac9e970e9258f37"
+    },
+    {
+      "path": "plots/wrong_hint_sycophancy.png",
+      "size": 39255,
+      "sha256": "3908f3726c11d63905859392ca06593d6a3164da74a0fab68a49850e0dbbdf94"
+    },
+    {
+      "path": "summary.json",
+      "size": 114,
+      "sha256": "bfd3e6977285951c4e5f9f420b3b0cd543f9d80ceb7ced30230a7f002d00a17f"
+    }
+  ]
+}

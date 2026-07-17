@@ -53,9 +53,15 @@ def _write_jsonl_line(path: Path, payload: dict) -> None:
 
 def prepare_run_dir(run_cfg: dict) -> Path:
     run_dir = Path(run_cfg["results_dir"]) / run_cfg["name"]
-    if run_cfg.get("fail_if_exists", False) and run_dir.exists():
-        raise FileExistsError(f"refusing to overwrite existing run directory: {run_dir}")
-    run_dir.mkdir(parents=True, exist_ok=True)
+    if run_cfg.get("fail_if_exists", False):
+        try:
+            run_dir.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            raise FileExistsError(
+                f"refusing to overwrite existing run directory: {run_dir}"
+            ) from None
+    else:
+        run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "examples").mkdir(exist_ok=True)
     return run_dir
 

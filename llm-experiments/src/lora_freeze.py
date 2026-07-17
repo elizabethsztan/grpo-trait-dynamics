@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 LAYER_RE = re.compile(r"(?:layers|h|blocks)\.(\d+)\.")
+LORA_MODULE_RE = re.compile(r"\.([^.]+)\.lora_")
 
 
 def infer_num_hidden_layers(model) -> int:
@@ -52,11 +53,17 @@ def trainable_lora_layer_indices(model) -> list[int]:
     return sorted(indices)
 
 
-def assert_only_lora_layers_trainable(model, allowed_layers: list[int]) -> None:
+def assert_only_lora_layers_trainable(
+    model,
+    allowed_layers: list[int],
+    target_modules: list[str] | None = None,
+) -> None:
     allowed = set(allowed_layers)
     trainable = [(name, param) for name, param in model.named_parameters() if param.requires_grad]
     if not trainable:
         raise AssertionError("no trainable LoRA parameters found")
+    observed_layers = set()
+    observed_layer_modules = set()
     for name, _param in trainable:
         if "lora_" not in name:
             raise AssertionError(f"non-LoRA trainable parameter: {name}")
@@ -65,8 +72,23 @@ def assert_only_lora_layers_trainable(model, allowed_layers: list[int]) -> None:
             raise AssertionError(f"trainable LoRA parameter has no layer index: {name}")
         if layer_index not in allowed:
             raise AssertionError(f"LoRA parameter outside selected layers: {name}")
+        observed_layers.add(layer_index)
+        if target_modules:
+            module_match = LORA_MODULE_RE.search(name)
+            module = module_match.group(1) if module_match else None
+            if module not in target_modules:
+                raise AssertionError(f"unexpected LoRA target module in parameter: {name}")
+            observed_layer_modules.add((layer_index, module))
         if "lm_head" in name:
             raise AssertionError(f"lm_head must not be trainable: {name}")
+    missing_layers = sorted(allowed - observed_layers)
+    if missing_layers:
+        raise AssertionError(f"missing selected layers in trainable LoRA parameters: {missing_layers}")
+    if target_modules:
+        expected = {(layer, module) for layer in allowed for module in target_modules}
+        missing_modules = sorted(expected - observed_layer_modules)
+        if missing_modules:
+            raise AssertionError(f"missing LoRA target modules by layer: {missing_modules}")
 
 
 def apply_lora(model, lora_config: dict):
@@ -87,7 +109,11 @@ def apply_lora(model, lora_config: dict):
         layers_pattern="layers",
     )
     model = get_peft_model(model, peft_cfg)
-    assert_only_lora_layers_trainable(model, lora_layers)
+    assert_only_lora_layers_trainable(
+        model,
+        lora_layers,
+        target_modules=list(lora_config["target_modules"]),
+    )
     return model
 
 

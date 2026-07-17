@@ -1,0 +1,30 @@
+{
+  "run_name": "sycophancy_main_output_repro_seed290402",
+  "num_steps": 100,
+  "metrics_path": "results/sycophancy_main_output_repro_seed290402/metrics.jsonl",
+  "activation_probe_enabled": false,
+  "lora_layer_scope": "above_hook",
+  "lora_layer_indices": [
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+  ],
+  "trainable_parameter_count": 2016256,
+  "model_revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+  "environment": {
+    "torch": "2.12.1+cu130",
+    "transformers": "5.12.1",
+    "peft": "0.19.1",
+    "device": "cuda",
+    "cuda_device_name": "NVIDIA L40S",
+    "dtype": "torch.bfloat16"
+  }
+}
