@@ -19,7 +19,7 @@ from src.grpo import (
     sample_rollouts,
     train_grpo_step,
 )
-from src.lora_freeze import apply_lora_above_hook
+from src.lora_freeze import apply_lora, trainable_lora_layer_indices
 from src.price import CumulativePriceTracker
 
 
@@ -49,6 +49,15 @@ def _write_jsonl_line(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as f:
         f.write(json.dumps(payload) + "\n")
+
+
+def prepare_run_dir(run_cfg: dict) -> Path:
+    run_dir = Path(run_cfg["results_dir"]) / run_cfg["name"]
+    if run_cfg.get("fail_if_exists", False) and run_dir.exists():
+        raise FileExistsError(f"refusing to overwrite existing run directory: {run_dir}")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "examples").mkdir(exist_ok=True)
+    return run_dir
 
 
 def _activation_scores_to_numpy(scores):
@@ -155,7 +164,9 @@ def _activation_invariance(model, tokenizer, probe, cfg, data_cfg, seed: int, de
 
 
 def run_training(config: dict) -> Path:
+    import peft
     import torch
+    import transformers
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     run_cfg = config["RunConfig"]
@@ -166,9 +177,7 @@ def run_training(config: dict) -> Path:
     activation_cfg = dict(config["ActivationProbeConfig"])
     activation_cfg["hook_layer"] = config["LoRAConfig"]["hook_layer"]
 
-    run_dir = Path(run_cfg["results_dir"]) / run_cfg["name"]
-    run_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "examples").mkdir(exist_ok=True)
+    run_dir = prepare_run_dir(run_cfg)
     metrics_path = run_dir / "metrics.jsonl"
     if metrics_path.exists():
         metrics_path.unlink()
@@ -189,7 +198,9 @@ def run_training(config: dict) -> Path:
     configure_tokenizer_and_model(tokenizer, model)
     if model_cfg.get("use_gradient_checkpointing", False):
         model.gradient_checkpointing_enable()
-    model = apply_lora_above_hook(model, config["LoRAConfig"]).to(device)
+    model = apply_lora(model, config["LoRAConfig"]).to(device)
+    lora_layer_indices = trainable_lora_layer_indices(model)
+    trainable_parameter_count = sum(param.numel() for param in model.parameters() if param.requires_grad)
     optimizer = torch.optim.AdamW(
         [param for param in model.parameters() if param.requires_grad],
         lr=float(train_cfg["learning_rate"]),
@@ -320,7 +331,24 @@ def run_training(config: dict) -> Path:
     adapter_dir = run_dir / "adapter" / "final"
     adapter_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(adapter_dir)
-    summary = {"run_name": run_cfg["name"], "num_steps": train_cfg["num_steps"], "metrics_path": str(metrics_path)}
+    summary = {
+        "run_name": run_cfg["name"],
+        "num_steps": train_cfg["num_steps"],
+        "metrics_path": str(metrics_path),
+        "activation_probe_enabled": bool(activation_cfg.get("enabled", True)),
+        "lora_layer_scope": config["LoRAConfig"].get("layer_scope", "above_hook"),
+        "lora_layer_indices": lora_layer_indices,
+        "trainable_parameter_count": trainable_parameter_count,
+        "model_revision": getattr(model.config, "_commit_hash", None),
+        "environment": {
+            "torch": torch.__version__,
+            "transformers": transformers.__version__,
+            "peft": peft.__version__,
+            "device": str(device),
+            "cuda_device_name": torch.cuda.get_device_name(device) if str(device).startswith("cuda") else None,
+            "dtype": str(dtype),
+        },
+    }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     return run_dir
 

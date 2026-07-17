@@ -1,0 +1,15 @@
+RunConfig:
+  name: sycophancy_output_smoke_restricted
+  seed: 290402
+  results_dir: results
+  fail_if_exists: true
+  device: auto
+  dtype: auto
+  debug: true
+
+LoRAConfig:
+  hook_layer: 12
+  layer_scope: above_hook
+
+ActivationProbeConfig:
+  enabled: false

@@ -27,14 +27,53 @@ def freeze_base_model(model, freeze_lm_head: bool = True) -> None:
             param.requires_grad_(False)
 
 
-def apply_lora_above_hook(model, lora_config: dict):
+def resolve_lora_layers(num_hidden_layers: int, lora_config: dict) -> list[int]:
+    scope = str(lora_config.get("layer_scope", "above_hook"))
+    if scope == "all":
+        layers = list(range(num_hidden_layers))
+    elif scope == "above_hook":
+        hook_layer = int(lora_config["hook_layer"])
+        layers = list(range(hook_layer + 1, num_hidden_layers))
+    else:
+        raise ValueError(f"unsupported LoRA layer_scope: {scope!r}")
+    if not layers:
+        raise ValueError(f"LoRA layer_scope {scope!r} selects no transformer blocks")
+    return layers
+
+
+def trainable_lora_layer_indices(model) -> list[int]:
+    indices = set()
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        layer_index = extract_layer_index(name)
+        if layer_index is not None:
+            indices.add(layer_index)
+    return sorted(indices)
+
+
+def assert_only_lora_layers_trainable(model, allowed_layers: list[int]) -> None:
+    allowed = set(allowed_layers)
+    trainable = [(name, param) for name, param in model.named_parameters() if param.requires_grad]
+    if not trainable:
+        raise AssertionError("no trainable LoRA parameters found")
+    for name, _param in trainable:
+        if "lora_" not in name:
+            raise AssertionError(f"non-LoRA trainable parameter: {name}")
+        layer_index = extract_layer_index(name)
+        if layer_index is None:
+            raise AssertionError(f"trainable LoRA parameter has no layer index: {name}")
+        if layer_index not in allowed:
+            raise AssertionError(f"LoRA parameter outside selected layers: {name}")
+        if "lm_head" in name:
+            raise AssertionError(f"lm_head must not be trainable: {name}")
+
+
+def apply_lora(model, lora_config: dict):
     from peft import LoraConfig, TaskType, get_peft_model
 
-    hook_layer = int(lora_config["hook_layer"])
     num_hidden_layers = infer_num_hidden_layers(model)
-    lora_layers = list(range(hook_layer + 1, num_hidden_layers))
-    if not lora_layers:
-        raise ValueError("hook_layer leaves no transformer blocks available for LoRA")
+    lora_layers = resolve_lora_layers(num_hidden_layers, lora_config)
 
     freeze_base_model(model, freeze_lm_head=bool(lora_config.get("freeze_lm_head", True)))
     peft_cfg = LoraConfig(
@@ -48,21 +87,18 @@ def apply_lora_above_hook(model, lora_config: dict):
         layers_pattern="layers",
     )
     model = get_peft_model(model, peft_cfg)
-    assert_only_lora_above_hook_trainable(model, hook_layer)
+    assert_only_lora_layers_trainable(model, lora_layers)
     return model
 
 
+def apply_lora_above_hook(model, lora_config: dict):
+    config = dict(lora_config)
+    config["layer_scope"] = "above_hook"
+    return apply_lora(model, config)
+
+
 def assert_only_lora_above_hook_trainable(model, hook_layer: int) -> None:
-    trainable = [(name, param) for name, param in model.named_parameters() if param.requires_grad]
-    if not trainable:
+    trainable_layers = trainable_lora_layer_indices(model)
+    if not trainable_layers:
         raise AssertionError("no trainable LoRA parameters found")
-    for name, _param in trainable:
-        if "lora_" not in name:
-            raise AssertionError(f"non-LoRA trainable parameter: {name}")
-        layer_index = extract_layer_index(name)
-        if layer_index is None:
-            raise AssertionError(f"trainable LoRA parameter has no layer index: {name}")
-        if layer_index <= hook_layer:
-            raise AssertionError(f"LoRA parameter at/below hook layer {hook_layer}: {name}")
-        if "lm_head" in name:
-            raise AssertionError(f"lm_head must not be trainable: {name}")
+    assert_only_lora_layers_trainable(model, [layer for layer in trainable_layers if layer > hook_layer])

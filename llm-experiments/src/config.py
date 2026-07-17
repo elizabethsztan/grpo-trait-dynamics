@@ -10,6 +10,7 @@ DEFAULT_CONFIG = {
         "name": "sycophancy_smoke",
         "seed": 290402,
         "results_dir": "results",
+        "fail_if_exists": False,
         "device": "auto",
         "dtype": "auto",
         "debug": True,
@@ -21,6 +22,7 @@ DEFAULT_CONFIG = {
     },
     "LoRAConfig": {
         "hook_layer": 12,
+        "layer_scope": "above_hook",
         "r": 8,
         "lora_alpha": 16,
         "lora_dropout": 0.0,
