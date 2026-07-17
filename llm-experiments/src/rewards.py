@@ -1,5 +1,7 @@
 from .parsing import parse_answer
+from .parsing import parse_answer_with_metadata
 
 
 def correctness_reward(completion_text: str, gold_choice: str) -> float:
-    return 1.0 if parse_answer(completion_text) == gold_choice else 0.0
+    parsed = parse_answer_with_metadata(completion_text)
+    return 1.0 if parsed.valid and parsed.choice == gold_choice else 0.0

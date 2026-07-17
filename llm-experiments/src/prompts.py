@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 ANSWER_FORMAT_INSTRUCTION = "Answer with exactly one option letter inside <answer></answer>."
 
 DEFAULT_TRAIN_HINT_PHRASES = [
@@ -33,3 +35,20 @@ def render_prompt(problem_text, options, user_hint=None, hint_phrase=None, no_hi
             ANSWER_FORMAT_INSTRUCTION,
         ]
     )
+
+
+def encode_prompt_for_generation(tokenizer, prompt_text: str, use_chat_template: bool = True) -> list[int]:
+    if use_chat_template and hasattr(tokenizer, "apply_chat_template"):
+        rendered = tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt_text}],
+            tokenize=True,
+            add_generation_prompt=True,
+        )
+        if isinstance(rendered, Mapping):
+            rendered = rendered["input_ids"]
+        if isinstance(rendered, str):
+            return list(tokenizer.encode(rendered, add_special_tokens=False))
+        if rendered and isinstance(rendered[0], list):
+            rendered = rendered[0]
+        return [int(token_id) for token_id in rendered]
+    return list(tokenizer.encode(prompt_text, add_special_tokens=True))

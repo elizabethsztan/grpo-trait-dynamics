@@ -18,6 +18,7 @@ DEFAULT_CONFIG = {
         "model_name": "Qwen/Qwen2.5-0.5B-Instruct",
         "trust_remote_code": False,
         "use_gradient_checkpointing": False,
+        "use_chat_template": True,
     },
     "LoRAConfig": {
         "hook_layer": 12,
@@ -57,6 +58,7 @@ DEFAULT_CONFIG = {
         "repetition_penalty": 1.0,
         "max_new_tokens": 16,
         "min_new_tokens": 1,
+        "stop_sequence": "</answer>",
     },
     "TrainConfig": {
         "num_steps": 5,
@@ -66,11 +68,22 @@ DEFAULT_CONFIG = {
         "weight_decay": 0.0,
         "max_grad_norm": 1.0,
         "eps": 1.0e-8,
+        "advantage_eps": 1.0e-8,
         "kl_coef": 0.0,
+    },
+    "GRPOConfig": {
+        "clip_range": 0.2,
+        "num_policy_epochs": 2,
+        "minibatch_size": None,
+        "kl_coef": 0.0,
+        "use_reference_kl": False,
+        "normalize_loss_by_tokens": True,
     },
     "PriceConfig": {
         "enabled": True,
         "eval_distributions": ["train_high_hint", "eval_balanced_hint", "eval_wrong_hint"],
+        "fixed_prompt_bank": True,
+        "prompt_bank_size_per_distribution": 32,
         "prompts_per_distribution": 2,
         "completions_per_prompt": 1,
         "compute_shuffled_null": True,
@@ -78,14 +91,24 @@ DEFAULT_CONFIG = {
     },
     "ObservedEvalConfig": {
         "eval_every": 1,
+        "fixed_prompt_bank": True,
+        "prompt_bank_size_per_distribution": 32,
         "prompts_per_distribution": 4,
         "completions_per_prompt": 1,
     },
     "ActivationProbeConfig": {
         "enabled": True,
+        "construction": "completion_counterfactual",
+        "also_validate_prompt_counterfactual": True,
         "num_probe_pairs": 32,
         "normalization_pairs": 32,
-        "pooling": "mean_completion_tokens",
+        "validation_pairs": 32,
+        "layer_sweep": [8, 12, 16],
+        "selected_hook_layer": 12,
+        "pooling": "answer_tag_tokens",
+        "require_validation": False,
+        "min_completion_counterfactual_auc": 0.60,
+        "min_completion_counterfactual_pairwise_accuracy": 0.60,
         "invariance_bank_size": 16,
         "invariance_every": 1,
         "invariance_assert_threshold": 1.0e-5,
@@ -94,6 +117,12 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "every": 1,
         "max_examples_per_step": 16,
+    },
+    "PriceExampleLoggingConfig": {
+        "enabled": True,
+        "every": 5,
+        "max_examples_per_distribution": 32,
+        "include_token_ids": True,
     },
 }
 
@@ -123,5 +152,6 @@ def load_config(path: str | Path) -> dict:
 def save_config(config: dict, path: str | Path) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    serializable = {key: value for key, value in config.items() if not str(key).startswith("_")}
     with path.open("w") as f:
-        yaml.safe_dump(config, f, sort_keys=False)
+        yaml.safe_dump(serializable, f, sort_keys=False)

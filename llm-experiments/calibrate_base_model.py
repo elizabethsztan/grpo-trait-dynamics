@@ -32,7 +32,7 @@ def _validate_examples(examples) -> None:
 
 def build_calibration_grid(config: dict) -> list[tuple[str, dict]]:
     difficulties = ["easy", "medium", "hard"]
-    reliabilities = [0.0, 0.5, 0.9]
+    reliabilities = [0.0, 0.1, 0.25, 0.5, 0.9]
     grid = []
     for difficulty in difficulties:
         for hint_correct_probability in reliabilities:
@@ -74,7 +74,12 @@ def run_dry_calibration(config: dict, run_dir: Path) -> dict:
             "dry_run": True,
             "accuracy": None,
             "agreement_rate": None,
+            "agreement_rate_given_valid": None,
             "invalid_output_rate": None,
+            "strict_valid_rate": None,
+            "multiple_answer_tag_rate": None,
+            "extra_text_rate": None,
+            "stop_answer_tag_rate": None,
             "no_hint_accuracy": None if grid_cfg["has_hint"] else None,
         }
 
@@ -91,6 +96,7 @@ def run_model_calibration(config: dict, run_dir: Path) -> dict:
 
     run_cfg = config["RunConfig"]
     model_cfg = config["ModelConfig"]
+    config["GenerationConfig"]["use_chat_template"] = bool(model_cfg.get("use_chat_template", True))
     data_cfg = config["DataConfig"]
     observed_cfg = config["ObservedEvalConfig"]
     device = "cuda" if run_cfg.get("device") == "auto" and torch.cuda.is_available() else (
@@ -125,10 +131,21 @@ def run_model_calibration(config: dict, run_dir: Path) -> dict:
                 completion.completion_text,
                 example,
                 completion_token_length=completion.completion_token_length,
+                stop_reason=completion.stop_reason,
+                stopped_on_answer_tag=completion.stopped_on_answer_tag,
             )
             traits.append(metric)
             row = example.to_json_dict()
-            row.update({"completion_text": completion.completion_text, "metrics": metric.to_json_dict()})
+            row.update(
+                {
+                    "formatted_prompt_ids": completion.prompt_ids,
+                    "completion_text": completion.completion_text,
+                    "completion_ids": completion.completion_ids,
+                    "stop_reason": completion.stop_reason,
+                    "stopped_on_answer_tag": completion.stopped_on_answer_tag,
+                    "metrics": metric.to_json_dict(),
+                }
+            )
             rows.append(row)
         summary = summarize_trait_metrics(traits)
         summary["no_hint_accuracy"] = summary["accuracy"] if not grid_cfg["has_hint"] else None

@@ -49,11 +49,11 @@ def _summary_values(runs: list[dict], key: str):
     return [float("nan") if item.get(key) is None else item[key] for item in runs]
 
 
-def _save_line_plot(path: Path, x, series, ylabel: str):
+def _save_line_plot(path: Path, x, series, ylabel: str, xlabel: str = "GRPO step"):
     fig, ax = plt.subplots(figsize=(6, 4))
     for label, y in series:
         ax.plot(x, y, marker="o", markersize=3, label=label)
-    ax.set_xlabel("GRPO step")
+    ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.legend(frameon=False)
     fig.tight_layout()
@@ -64,15 +64,21 @@ def _save_line_plot(path: Path, x, series, ylabel: str):
 def _price_plot(path: Path, metrics: list[dict], distribution: str, trait_name: str, observed_key: str):
     x = [m["step"] for m in metrics]
     observed = _carry_series(metrics, lambda m: m["observed_eval"][distribution][observed_key])
-    predicted = _carry_series(metrics, lambda m: m["price"][distribution][trait_name]["cov_cum"])
+    sn = _carry_series(metrics, lambda m: m["price"][distribution][trait_name]["sn_cum"])
+    raw = _carry_series(metrics, lambda m: m["price"][distribution][trait_name]["raw_cov_cum"])
+    shuffled = _carry_series(metrics, lambda m: m["price"][distribution].get(f"{trait_name}_shuffled", {}).get("sn_cum"))
     if observed:
         base = _first_real_value(observed)
         observed = [value - base for value in observed]
-    residual = [obs - pred for obs, pred in zip(observed, predicted)]
     _save_line_plot(
         path,
         x,
-        [("Observed: T_t - T_0", observed), ("Predicted: cumulative Cov(omega, s)", predicted), ("Residual", residual)],
+        [
+            ("Observed trait drift", observed),
+            ("Price reconstruction, self-normalized", sn),
+            ("Price reconstruction, raw covariance", raw),
+            ("Shuffled trait null", shuffled),
+        ],
         "Cumulative trait change",
     )
 
@@ -89,6 +95,28 @@ def plot_run(run_dir: str | Path) -> list[Path]:
     written = []
 
     targets = [
+        (
+            "heldout_behavior.png",
+            [
+                ("train_high_hint accuracy", _carry_series(metrics, lambda m: m["observed_eval"]["train_high_hint"]["accuracy"])),
+                ("train_high_hint agreement", _carry_series(metrics, lambda m: m["observed_eval"]["train_high_hint"]["agreement_rate"])),
+                ("eval_wrong_hint accuracy", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["accuracy"])),
+                ("eval_wrong_hint agreement", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["agreement_rate"])),
+                ("eval_wrong_hint sycophantic error", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["sycophantic_error_rate"])),
+                ("eval_no_hint accuracy", _carry_series(metrics, lambda m: m["observed_eval"]["eval_no_hint"]["accuracy"])),
+            ],
+            "Rate",
+        ),
+        (
+            "format_diagnostics.png",
+            [
+                ("strict valid", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["strict_valid_rate"])),
+                ("invalid", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["invalid_output_rate"])),
+                ("multiple tags", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["multiple_answer_tag_rate"])),
+                ("answer stop", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["stop_answer_tag_rate"])),
+            ],
+            "Rate",
+        ),
         (
             "reward_accuracy.png",
             [
@@ -163,14 +191,21 @@ def plot_reliability_sweep(sweep_dir: str | Path) -> list[Path]:
     agreement = _summary_values(runs, "final_wrong_hint_agreement_rate")
     sycophancy = _summary_values(runs, "final_sycophantic_error_rate")
     price = _summary_values(runs, "final_output_agreement_price_cum")
+    accuracy = _summary_values(runs, "final_wrong_hint_accuracy")
+    no_hint_accuracy = _summary_values(runs, "final_no_hint_accuracy")
 
     written = []
-    for filename, values, ylabel in [
-        ("reliability_sweep_agreement.png", agreement, "Wrong-hint agreement"),
-        ("reliability_sweep_wrong_hint_sycophancy.png", sycophancy, "Sycophantic error"),
-        ("reliability_sweep_price_summary.png", price, "Cumulative Price estimate"),
+    for filename, series, ylabel in [
+        ("reliability_sweep_agreement.png", [("Wrong-hint agreement", agreement)], "Wrong-hint agreement"),
+        ("reliability_sweep_wrong_hint_sycophancy.png", [("Sycophantic error", sycophancy)], "Sycophantic error"),
+        (
+            "reliability_sweep_accuracy.png",
+            [("Wrong-hint accuracy", accuracy), ("No-hint accuracy reference", no_hint_accuracy)],
+            "Wrong-hint accuracy",
+        ),
+        ("reliability_sweep_price_summary.png", [("Cumulative Price estimate", price)], "Cumulative Price estimate"),
     ]:
         path = plots_dir / filename
-        _save_line_plot(path, reliabilities, [(ylabel, values)], ylabel)
+        _save_line_plot(path, reliabilities, series, ylabel, xlabel="Training hint correctness probability")
         written.append(path)
     return written

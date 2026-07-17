@@ -10,6 +10,7 @@ import numpy as np
 from src.activation_probe import build_activation_probe, make_probe_pairs
 from src.config import load_config, save_config
 from src.data import generate_examples
+from src.eval_banks import build_eval_banks, save_eval_banks, select_bank_examples
 from src.generation import configure_tokenizer_and_model
 from src.grpo import (
     attach_logprobs,
@@ -21,6 +22,7 @@ from src.grpo import (
 )
 from src.lora_freeze import apply_lora_above_hook
 from src.price import CumulativePriceTracker
+from src.price_logging import write_price_examples
 
 
 def _resolve_device(run_cfg):
@@ -59,11 +61,42 @@ def _record_step_for_update(update_index: int) -> int:
     return update_index + 1
 
 
+def _check_activation_validation(run_cfg: dict, activation_cfg: dict, allow_unvalidated_probe: bool = False) -> dict:
+    if not activation_cfg.get("enabled", True) or not activation_cfg.get("require_validation", False):
+        return {"required": False, "status": "not_required"}
+    validation_path = Path(run_cfg["results_dir"]) / f"{run_cfg['name']}_probe_validation" / "activation_probe_validation.json"
+    if not validation_path.exists():
+        if allow_unvalidated_probe:
+            return {"required": True, "status": "missing_allowed", "path": str(validation_path)}
+        raise FileNotFoundError(f"activation probe validation required but missing: {validation_path}")
+    payload = json.loads(validation_path.read_text())
+    selected = payload.get("selected_layer", {})
+    auc = selected.get("completion_counterfactual_auc")
+    pairwise = selected.get("completion_counterfactual_pairwise_accuracy")
+    min_auc = float(activation_cfg.get("min_completion_counterfactual_auc", 0.60))
+    min_pairwise = float(activation_cfg.get("min_completion_counterfactual_pairwise_accuracy", 0.60))
+    passed = auc is not None and pairwise is not None and auc >= min_auc and pairwise >= min_pairwise
+    if not passed and not allow_unvalidated_probe:
+        raise RuntimeError(
+            "activation probe validation did not meet thresholds: "
+            f"auc={auc}, pairwise={pairwise}, required=({min_auc}, {min_pairwise})"
+        )
+    return {"required": True, "status": "passed" if passed else "failed_allowed", "path": str(validation_path), "metrics": selected}
+
+
 def _latest_eval_wrong_hint(metrics: list[dict]) -> dict:
     for record in reversed(metrics):
         observed_wrong = record.get("observed_eval", {}).get("eval_wrong_hint", {})
         if observed_wrong:
             return observed_wrong
+    return {}
+
+
+def _latest_observed_distribution(metrics: list[dict], distribution: str) -> dict:
+    for record in reversed(metrics):
+        observed = record.get("observed_eval", {}).get(distribution, {})
+        if observed:
+            return observed
     return {}
 
 
@@ -81,11 +114,14 @@ def _write_rollout_examples(run_dir: Path, step: int, samples, logging_cfg: dict
             {
                 "problem_id": sample.example.problem_id,
                 "prompt_text": sample.example.prompt_text,
+                "formatted_prompt_ids": sample.generated.prompt_ids,
                 "gold_choice": sample.example.gold_choice,
                 "user_hint": sample.example.user_hint,
                 "hint_is_correct": sample.example.hint_is_correct,
                 "completion_text": sample.generated.completion_text,
                 "completion_ids": sample.generated.completion_ids,
+                "stop_reason": sample.generated.stop_reason,
+                "stopped_on_answer_tag": sample.generated.stopped_on_answer_tag,
                 "metrics": sample.traits.to_json_dict(),
             }
         )
@@ -113,16 +149,26 @@ def _make_price_rollouts(model, tokenizer, config, step: int, device, activation
     run_cfg = config["RunConfig"]
     data_cfg = config["DataConfig"]
     price_cfg = config["PriceConfig"]
+    eval_banks = config.get("_eval_banks") or {}
     rollouts = {}
     for idx, dist_name in enumerate(price_cfg.get("eval_distributions", [])):
         dist_cfg = data_cfg["eval_distributions"][dist_name]
-        examples = make_examples_for_distribution(
-            dist_cfg,
-            data_cfg,
-            n=int(price_cfg.get("prompts_per_distribution", 2)),
-            seed=int(run_cfg["seed"]) + 500000 + step * 1000 + idx,
-            split=dist_name,
-        )
+        if price_cfg.get("fixed_prompt_bank", True) and dist_name in eval_banks:
+            examples = select_bank_examples(
+                eval_banks[dist_name],
+                n=int(price_cfg.get("prompts_per_distribution", 2)),
+                step=step,
+                seed=int(run_cfg["seed"]) + 500000 + idx,
+                fixed_across_steps=False,
+            )
+        else:
+            examples = make_examples_for_distribution(
+                dist_cfg,
+                data_cfg,
+                n=int(price_cfg.get("prompts_per_distribution", 2)),
+                seed=int(run_cfg["seed"]) + 500000 + step * 1000 + idx,
+                split=dist_name,
+            )
         samples = sample_rollouts(
             model,
             tokenizer,
@@ -160,19 +206,31 @@ def run_training(config: dict) -> Path:
 
     run_cfg = config["RunConfig"]
     model_cfg = config["ModelConfig"]
+    config["GenerationConfig"]["use_chat_template"] = bool(model_cfg.get("use_chat_template", True))
     train_cfg = config["TrainConfig"]
     price_cfg = config["PriceConfig"]
     data_cfg = config["DataConfig"]
     activation_cfg = dict(config["ActivationProbeConfig"])
-    activation_cfg["hook_layer"] = config["LoRAConfig"]["hook_layer"]
+    activation_cfg["hook_layer"] = int(activation_cfg.get("selected_hook_layer", config["LoRAConfig"]["hook_layer"]))
 
     run_dir = Path(run_cfg["results_dir"]) / run_cfg["name"]
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "examples").mkdir(exist_ok=True)
+    (run_dir / "price_examples").mkdir(exist_ok=True)
     metrics_path = run_dir / "metrics.jsonl"
     if metrics_path.exists():
         metrics_path.unlink()
     save_config(config, run_dir / "config.yaml")
+    activation_validation_status = _check_activation_validation(
+        run_cfg,
+        activation_cfg,
+        allow_unvalidated_probe=bool(config.get("_allow_unvalidated_probe", False)),
+    )
+    eval_banks = None
+    if config["ObservedEvalConfig"].get("fixed_prompt_bank", True) or config["PriceConfig"].get("fixed_prompt_bank", True):
+        eval_banks = build_eval_banks(config)
+        save_eval_banks(run_dir, eval_banks)
+        config["_eval_banks"] = eval_banks
 
     torch.manual_seed(int(run_cfg["seed"]))
     random.seed(int(run_cfg["seed"]))
@@ -211,6 +269,18 @@ def run_training(config: dict) -> Path:
     def eval_observed_for_step(step: int) -> dict:
         observed = {}
         if step == 0 or step % int(config["ObservedEvalConfig"].get("eval_every", 1)) == 0:
+            examples_by_distribution = None
+            if config["ObservedEvalConfig"].get("fixed_prompt_bank", True) and eval_banks:
+                examples_by_distribution = {
+                    name: select_bank_examples(
+                        bank,
+                        n=int(config["ObservedEvalConfig"].get("prompts_per_distribution", 4)),
+                        step=step,
+                        seed=int(run_cfg["seed"]) + 600000 + idx,
+                        fixed_across_steps=True,
+                    )
+                    for idx, (name, bank) in enumerate(eval_banks.items())
+                }
             observed = observed_eval(
                 model,
                 tokenizer,
@@ -220,6 +290,7 @@ def run_training(config: dict) -> Path:
                 device,
                 step,
                 activation_probe=activation_probe,
+                examples_by_distribution=examples_by_distribution,
             )
             for dist_name, values in observed.items():
                 observed_baselines.setdefault(
@@ -281,10 +352,11 @@ def run_training(config: dict) -> Path:
             train_examples,
             config["GenerationConfig"],
             group_size=int(train_cfg["group_size"]),
-            eps=float(train_cfg.get("eps", 1e-8)),
+            eps=float(train_cfg.get("advantage_eps", train_cfg.get("eps", 1e-8))),
             max_grad_norm=float(train_cfg.get("max_grad_norm", 1.0)),
             device=device,
             activation_probe=activation_probe,
+            grpo_cfg=config.get("GRPOConfig", {}),
         )
         _write_rollout_examples(run_dir, update_idx, train_samples, config["ExampleLoggingConfig"])
 
@@ -298,6 +370,7 @@ def run_training(config: dict) -> Path:
                 rng,
                 shuffled=bool(price_cfg.get("compute_shuffled_null", True)),
             )
+            write_price_examples(run_dir, _record_step_for_update(update_idx), dist_name, post_samples, config["PriceExampleLoggingConfig"])
 
         if price_cfg.get("compute_reused_rollout_diagnostic", True):
             reused = attach_logprobs(model, tokenizer, train_samples, device, "post_logprob")
@@ -320,7 +393,29 @@ def run_training(config: dict) -> Path:
     adapter_dir = run_dir / "adapter" / "final"
     adapter_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(adapter_dir)
-    summary = {"run_name": run_cfg["name"], "num_steps": train_cfg["num_steps"], "metrics_path": str(metrics_path)}
+    metrics = [json.loads(line) for line in metrics_path.read_text().splitlines() if line.strip()]
+    final_observed = {}
+    for record in reversed(metrics):
+        if record.get("observed_eval"):
+            final_observed = record["observed_eval"]
+            break
+    final_price = {}
+    for record in reversed(metrics):
+        if record.get("price"):
+            final_price = record["price"]
+            break
+    activation_validation = {}
+    validation_path = Path(run_cfg["results_dir"]) / f"{run_cfg['name']}_probe_validation" / "activation_probe_validation.json"
+    if validation_path.exists():
+        activation_validation = json.loads(validation_path.read_text())
+    summary = {
+        "run_name": run_cfg["name"],
+        "num_steps": train_cfg["num_steps"],
+        "metrics_path": str(metrics_path),
+        "final_observed_eval": final_observed,
+        "final_price": final_price,
+        "activation_probe_validation": activation_validation or activation_validation_status,
+    }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     return run_dir
 
@@ -341,6 +436,7 @@ def run_reliability_sweep(config: dict) -> Path:
         metrics_path = run_dir / "metrics.jsonl"
         metrics = [json.loads(line) for line in metrics_path.read_text().splitlines() if line.strip()]
         observed_wrong = _latest_eval_wrong_hint(metrics)
+        observed_no_hint = _latest_observed_distribution(metrics, "eval_no_hint")
         price_wrong = {}
         for record in reversed(metrics):
             price_wrong = record.get("price", {}).get("eval_wrong_hint", {})
@@ -352,7 +448,10 @@ def run_reliability_sweep(config: dict) -> Path:
                 "run_dir": str(run_dir),
                 "final_wrong_hint_agreement_rate": observed_wrong.get("wrong_hint_agreement_rate"),
                 "final_sycophantic_error_rate": observed_wrong.get("sycophantic_error_rate"),
-                "final_output_agreement_price_cum": price_wrong.get("output_agreement", {}).get("cov_cum"),
+                "final_output_agreement_price_cum": price_wrong.get("output_agreement", {}).get("sn_cum"),
+                "final_output_agreement_price_raw_cum": price_wrong.get("output_agreement", {}).get("raw_cov_cum"),
+                "final_wrong_hint_accuracy": observed_wrong.get("accuracy"),
+                "final_no_hint_accuracy": observed_no_hint.get("accuracy"),
             }
         )
     summary = {
@@ -367,8 +466,10 @@ def run_reliability_sweep(config: dict) -> Path:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
+    parser.add_argument("--allow-unvalidated-probe", action="store_true")
     args = parser.parse_args()
     config = load_config(args.config)
+    config["_allow_unvalidated_probe"] = args.allow_unvalidated_probe
     if "ReliabilitySweepConfig" in config:
         run_dir = run_reliability_sweep(config)
         print(f"wrote reliability sweep outputs to {run_dir}")

@@ -9,6 +9,7 @@ from src.plotting import plot_reliability_sweep, plot_run
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", required=True)
+    parser.add_argument("--sweep", action="store_true")
     args = parser.parse_args()
     run_dir = Path(args.run_dir)
     written = []

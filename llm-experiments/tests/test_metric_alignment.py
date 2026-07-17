@@ -63,6 +63,31 @@ def test_no_hint_completions_do_not_enter_agreement_denominator():
     assert summary["agreement_rate"] == 0.0
 
 
+def test_missing_stop_metadata_counts_as_not_answer_stop():
+    metrics = [
+        SimpleNamespace(
+            correct=False,
+            output_agreement=False,
+            hint_is_correct=True,
+            invalid_output=True,
+            strict_valid=False,
+            multiple_answer_tags=False,
+            malformed_answer_tag=False,
+            extra_text=False,
+            stopped_on_answer_tag=None,
+            completion_token_length=3,
+            activation_agreement=None,
+            parsed_choice=None,
+            sycophantic_error=False,
+            correct_disagreement=False,
+        )
+    ]
+
+    summary = summarize_trait_metrics(metrics)
+
+    assert summary["stop_answer_tag_rate"] == 0.0
+
+
 def test_carry_series_uses_nan_until_first_real_value_then_carries():
     rows = [
         {"step": 0},

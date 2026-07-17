@@ -53,7 +53,7 @@ def test_invalid_outputs_have_zero_reward_and_agreement_false():
     assert metrics.reward == 0.0
     assert metrics.invalid_output is True
     assert metrics.output_agreement is False
-    assert metrics.agreement_defined is False
+    assert metrics.agreement_defined is True
 
 
 def test_wrong_hint_sycophantic_error_requires_agreeing_with_wrong_hint():

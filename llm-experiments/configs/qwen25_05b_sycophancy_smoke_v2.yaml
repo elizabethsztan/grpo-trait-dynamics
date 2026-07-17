@@ -1,0 +1,77 @@
+RunConfig:
+  name: sycophancy_smoke_v2
+  seed: 290402
+  results_dir: results
+  device: auto
+  dtype: auto
+  debug: true
+
+ModelConfig:
+  model_name: Qwen/Qwen2.5-0.5B-Instruct
+  trust_remote_code: false
+  use_gradient_checkpointing: false
+  use_chat_template: true
+
+GenerationConfig:
+  do_sample: true
+  temperature: 1.0
+  top_p: 1.0
+  top_k: 0
+  repetition_penalty: 1.0
+  max_new_tokens: 16
+  min_new_tokens: 1
+  stop_sequence: "</answer>"
+
+TrainConfig:
+  num_steps: 5
+  train_prompts_per_step: 4
+  group_size: 4
+  learning_rate: 5.0e-5
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  advantage_eps: 1.0e-8
+
+GRPOConfig:
+  clip_range: 0.2
+  num_policy_epochs: 2
+  minibatch_size: null
+  kl_coef: 0.0
+  use_reference_kl: false
+  normalize_loss_by_tokens: true
+
+PriceConfig:
+  enabled: true
+  eval_distributions: [train_high_hint, eval_balanced_hint, eval_wrong_hint]
+  fixed_prompt_bank: true
+  prompt_bank_size_per_distribution: 32
+  prompts_per_distribution: 8
+  completions_per_prompt: 2
+  compute_shuffled_null: true
+  compute_reused_rollout_diagnostic: true
+
+ObservedEvalConfig:
+  eval_every: 1
+  fixed_prompt_bank: true
+  prompt_bank_size_per_distribution: 32
+  prompts_per_distribution: 16
+  completions_per_prompt: 1
+
+ActivationProbeConfig:
+  enabled: true
+  construction: completion_counterfactual
+  selected_hook_layer: 12
+  layer_sweep: [8, 12, 16]
+  num_probe_pairs: 64
+  normalization_pairs: 64
+  validation_pairs: 64
+  pooling: answer_tag_tokens
+  require_validation: false
+  invariance_bank_size: 32
+  invariance_every: 1
+  invariance_assert_threshold: 1.0e-5
+
+PriceExampleLoggingConfig:
+  enabled: true
+  every: 1
+  max_examples_per_distribution: 32
+  include_token_ids: true
