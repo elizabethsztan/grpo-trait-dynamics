@@ -98,6 +98,15 @@ def test_main_configs_differ_only_by_name_and_lora_scope():
     assert restricted_common == full_common
 
 
+def test_a100_control_differs_from_reproduction_only_by_name():
+    config_dir = Path(__file__).parents[1] / "configs"
+    restricted = load_config(config_dir / "qwen25_05b_sycophancy_output_repro.yaml")
+    a100_control = load_config(config_dir / "qwen25_05b_sycophancy_output_repro_a100.yaml")
+    restricted["RunConfig"].pop("name")
+    a100_control["RunConfig"].pop("name")
+    assert restricted == a100_control
+
+
 def test_legacy_config_keeps_legacy_defaults():
     config_path = Path(__file__).parents[1] / "configs" / "qwen25_05b_sycophancy_main.yaml"
     config = load_config(config_path)
