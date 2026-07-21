@@ -496,3 +496,24 @@ def test_price_calibration_smoke_uses_full_coverage_and_target_sampling():
     ]
     assert config["PriceConfig"]["prompts_per_distribution"] == 128
     assert config["PriceConfig"]["completions_per_prompt"] == 2
+
+
+def test_price_calibration_memory_smoke_reproduces_full_training_batch():
+    config_path = (
+        Path(__file__).parents[1]
+        / "configs"
+        / "qwen25_05b_sycophancy_full_lora_price_memory_smoke_lr2e5_n256_seed290403.yaml"
+    )
+    config = load_config(config_path)
+    assert config["RunConfig"]["fail_if_exists"] is True
+    assert config["LoRAConfig"]["layer_scope"] == "all"
+    assert config["TrainConfig"]["num_steps"] == 4
+    assert config["TrainConfig"]["train_prompts_per_step"] == 16
+    assert config["TrainConfig"]["group_size"] == 8
+    assert config["TrainConfig"]["learning_rate"] == 2e-5
+    assert config["PriceConfig"]["eval_distributions"] == [
+        "eval_balanced_hint",
+        "eval_wrong_hint",
+    ]
+    assert config["PriceConfig"]["prompts_per_distribution"] == 128
+    assert config["PriceConfig"]["completions_per_prompt"] == 2
