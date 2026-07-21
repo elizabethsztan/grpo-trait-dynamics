@@ -1,0 +1,29 @@
+{
+  "status": "no_final_run",
+  "calibration_seed": 290403,
+  "held_out_seed_used": false,
+  "held_out_seed": 290402,
+  "n256_selection_passed": false,
+  "n256_fallback_learning_rate": 1e-05,
+  "n256_fallback_selection_score": 1.095476118133099,
+  "n512_fallback_passed": false,
+  "stopping_rule": "Do not launch the held-out final run when the n512 fallback fails.",
+  "reference": {
+    "run_dir": "results/sycophancy_main",
+    "manifest_sha256": "d0cdfd50420be8e21611fa5ae4a79e6de94b331178e2ee770b51d140241f97fb"
+  },
+  "n512_fit": {
+    "eval_balanced_hint": {
+      "rmse": 0.15657734696334896,
+      "rmse_limit": 0.050884155900434665,
+      "final_abs_residual": 0.19532078372683914,
+      "final_abs_residual_limit": 0.04886427077317866
+    },
+    "eval_wrong_hint": {
+      "rmse": 0.10954633373931072,
+      "rmse_limit": 0.20135409473194044,
+      "final_abs_residual": 0.12108202228248544,
+      "final_abs_residual_limit": 0.1935034544459777
+    }
+  }
+}

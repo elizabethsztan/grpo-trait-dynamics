@@ -1,0 +1,55 @@
+{
+  "reference_dir": "results/sycophancy_full_lora_price_memory_smoke_lr2e5_n256_seed290403",
+  "files": [
+    {
+      "path": "adapter/final/README.md",
+      "size": 5206,
+      "sha256": "a4ab1811b31eee6883ea13e0b1d544b835409344653839852f2a5df989268788"
+    },
+    {
+      "path": "adapter/final/adapter_config.json",
+      "size": 1289,
+      "sha256": "de75da67a25514cac2352c6e8a9d1226dda54a953ee5f1c7adb8ce356b932fd3"
+    },
+    {
+      "path": "adapter/final/adapter_model.safetensors",
+      "size": 17640136,
+      "sha256": "5a23e8c48b5fb37a10a1f0176f1d4dcc3b281fab0f1aeac394962045b028a968"
+    },
+    {
+      "path": "config.yaml",
+      "size": 2191,
+      "sha256": "7e1ab64cded353a6e6764537dd3703a855392e00ef2455b1890005fc4aa4cd00"
+    },
+    {
+      "path": "examples/train_rollouts_step_0000.jsonl",
+      "size": 13226,
+      "sha256": "3e57ce2f06b778a6d8b831da05b3f9fe48743253fecf830c7bd58c5f3290b091"
+    },
+    {
+      "path": "examples/train_rollouts_step_0001.jsonl",
+      "size": 13252,
+      "sha256": "c582a26500a681c6ae1a7eab23916f0d1a5f59bd6f352bd79b5d585c66d1df55"
+    },
+    {
+      "path": "examples/train_rollouts_step_0002.jsonl",
+      "size": 13223,
+      "sha256": "1c19aca35e8fbe56655386d0e2de21b23b0f7995f23bd7e1c007b93ff03c2d6d"
+    },
+    {
+      "path": "examples/train_rollouts_step_0003.jsonl",
+      "size": 13098,
+      "sha256": "3db407d08b194e1a9d7819d4f380f1af1279b30884ec42e93d2b812037aaa330"
+    },
+    {
+      "path": "metrics.jsonl",
+      "size": 7344,
+      "sha256": "c3615dde0d1ca3874e9a69e6e864d6aff35a57618640b3c53cff60bc64478d9c"
+    },
+    {
+      "path": "summary.json",
+      "size": 792,
+      "sha256": "abbfd9c4d1edb9951d0fe697f53d714aac0c5c837e7d5276ed7063f879913247"
+    }
+  ]
+}

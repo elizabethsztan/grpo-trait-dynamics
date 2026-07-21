@@ -1,0 +1,25 @@
+{
+  "reference_dir": "results/sycophancy_full_lora_price_cal_lr1e5_n256_seed290403",
+  "files": [
+    {
+      "path": "config.yaml",
+      "size": 2183,
+      "sha256": "13830c31fb83abaadd44d97edb041710b3b5bc34d6d957105edfe88ee23b6641"
+    },
+    {
+      "path": "examples/train_rollouts_step_0000.jsonl",
+      "size": 13226,
+      "sha256": "3e57ce2f06b778a6d8b831da05b3f9fe48743253fecf830c7bd58c5f3290b091"
+    },
+    {
+      "path": "examples/train_rollouts_step_0001.jsonl",
+      "size": 13227,
+      "sha256": "9af1f7dea6a9cd603c16a838e817e2f6a430043799109198e1502d5766b8a009"
+    },
+    {
+      "path": "metrics.jsonl",
+      "size": 4637,
+      "sha256": "0a7597ebab1db2896573dc8902fa2279f7568ab358da702f0030134a01c033ec"
+    }
+  ]
+}

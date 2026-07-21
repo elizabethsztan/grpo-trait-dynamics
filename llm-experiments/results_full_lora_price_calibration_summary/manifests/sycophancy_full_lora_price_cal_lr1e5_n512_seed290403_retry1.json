@@ -1,0 +1,375 @@
+{
+  "reference_dir": "results/sycophancy_full_lora_price_cal_lr1e5_n512_seed290403_retry1",
+  "files": [
+    {
+      "path": "adapter/final/README.md",
+      "size": 5206,
+      "sha256": "a4ab1811b31eee6883ea13e0b1d544b835409344653839852f2a5df989268788"
+    },
+    {
+      "path": "adapter/final/adapter_config.json",
+      "size": 1289,
+      "sha256": "bd39b41ffb8ab8213259e36378cef61002e521f6c8a771422959c9aa98b382e5"
+    },
+    {
+      "path": "adapter/final/adapter_model.safetensors",
+      "size": 17640136,
+      "sha256": "03e6b3106762b675ce6e11ebea0cc9943aec695eec79ba1ef53783cddb058600"
+    },
+    {
+      "path": "config.yaml",
+      "size": 2233,
+      "sha256": "be59608c69adf43f3460be7336a145d0dc9df867342f8b0dffe2ad8d11f63f18"
+    },
+    {
+      "path": "examples/train_rollouts_step_0000.jsonl",
+      "size": 13108,
+      "sha256": "ce519fc4f2f107ccafe98d70c173f7f87830f04b080b5b435b5e1d9728853808"
+    },
+    {
+      "path": "examples/train_rollouts_step_0001.jsonl",
+      "size": 13315,
+      "sha256": "fc4ab7d0e206c30d152e363f03b1ffddc63b82909324b8e67342ed038e3e7618"
+    },
+    {
+      "path": "examples/train_rollouts_step_0002.jsonl",
+      "size": 13332,
+      "sha256": "b5d95211b40cdba4f1806cf3fab6ee5339415ed1f2886c59ed9e025a3a3e5138"
+    },
+    {
+      "path": "examples/train_rollouts_step_0003.jsonl",
+      "size": 13223,
+      "sha256": "c22c2e0e521d7b6cf96b4b2340f9e44c9bfc108bf56534dae17dcbc1e91f61ab"
+    },
+    {
+      "path": "examples/train_rollouts_step_0004.jsonl",
+      "size": 13311,
+      "sha256": "43361c8115fb87a2dbe8e7da79705e675ccfc260ed1b2869d5b167e05d5f9ca6"
+    },
+    {
+      "path": "examples/train_rollouts_step_0005.jsonl",
+      "size": 12815,
+      "sha256": "e49165fe56b86b68f76dfaad2c05387963a1faf4243940093092dd2b652ed5de"
+    },
+    {
+      "path": "examples/train_rollouts_step_0006.jsonl",
+      "size": 13159,
+      "sha256": "7bed39c9737f4bebfabddc97fa9c399aa5fdedf1ed33eca171f7e60d29c07205"
+    },
+    {
+      "path": "examples/train_rollouts_step_0007.jsonl",
+      "size": 12968,
+      "sha256": "04a7e039126b288ffabdb115996d540301b2c09f40282453eaba91126b4ac5fe"
+    },
+    {
+      "path": "examples/train_rollouts_step_0008.jsonl",
+      "size": 13267,
+      "sha256": "7db632fd65137a938d39c3fa858ce3a753f2c2926944451b415c8514005ef59a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0009.jsonl",
+      "size": 13295,
+      "sha256": "9543a3a193b12f20ce8952779feb313219999b3846b5a1338e901ee5e3fffae4"
+    },
+    {
+      "path": "examples/train_rollouts_step_0010.jsonl",
+      "size": 13180,
+      "sha256": "827dda2f7e9dda0bc20158a5943f6b18419ef6e261bad4657689ed302558859f"
+    },
+    {
+      "path": "examples/train_rollouts_step_0011.jsonl",
+      "size": 13342,
+      "sha256": "e35bf33724a46f36ca318b6e81f949f36a62c8a346ed4e736a4f8acabce7787c"
+    },
+    {
+      "path": "examples/train_rollouts_step_0012.jsonl",
+      "size": 13182,
+      "sha256": "d8f62aa5914c74ddf42c3ae1195aadb8d88bf6a6a4cf70f7556e5a74d59ed3a8"
+    },
+    {
+      "path": "examples/train_rollouts_step_0013.jsonl",
+      "size": 13085,
+      "sha256": "b5ab27f0d0abe3c8dbd44b4e0a1173badb5a8247f0722d0bab5b40584448dd9e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0014.jsonl",
+      "size": 13147,
+      "sha256": "5a3d1a90ee8bf546915fd6ae2ebf9781c5343961e4103c3af27fa6e3764bf42d"
+    },
+    {
+      "path": "examples/train_rollouts_step_0015.jsonl",
+      "size": 13160,
+      "sha256": "7e768561683423d5cbe83b80e95e997fea93ed014c41c86541a48e80ee9e96fc"
+    },
+    {
+      "path": "examples/train_rollouts_step_0016.jsonl",
+      "size": 12976,
+      "sha256": "504b41d22ee4b742c515734eb1c984793c97a087dc31d9de4c03348e4f24227d"
+    },
+    {
+      "path": "examples/train_rollouts_step_0017.jsonl",
+      "size": 12922,
+      "sha256": "91bae8204a184877e7718eec586f57fc30d0f23dc32f7936579426a2a64527fa"
+    },
+    {
+      "path": "examples/train_rollouts_step_0018.jsonl",
+      "size": 13040,
+      "sha256": "c29ae2a351132cefd7942a826482b217525b370950a7e891c70ccc83e1edb400"
+    },
+    {
+      "path": "examples/train_rollouts_step_0019.jsonl",
+      "size": 12977,
+      "sha256": "cb18569d066967672e443b95bb3955d3f5ce45ce38bce2c3b6474c451cfb6643"
+    },
+    {
+      "path": "examples/train_rollouts_step_0020.jsonl",
+      "size": 12809,
+      "sha256": "5dafe73667066599dcb6723b3a5ac7773130bb3a6730ad9cf571b2e5b4630d35"
+    },
+    {
+      "path": "examples/train_rollouts_step_0021.jsonl",
+      "size": 12863,
+      "sha256": "01956ddb38c19a2e85ad4989dcc46f1cb4b2670098d8d6f1c336e95eed301120"
+    },
+    {
+      "path": "examples/train_rollouts_step_0022.jsonl",
+      "size": 13051,
+      "sha256": "378cc88ddfade45679159bc94fdc0f22b2ed63b8ea54b48c4d121d2c3ce32f29"
+    },
+    {
+      "path": "examples/train_rollouts_step_0023.jsonl",
+      "size": 13184,
+      "sha256": "ec87a310188da3ba4af1a6ea307e1191d87e21874f95c4b492866c25a7db3997"
+    },
+    {
+      "path": "examples/train_rollouts_step_0024.jsonl",
+      "size": 12934,
+      "sha256": "9c7400786c9e704477ee0bd422f849cdf5374a03eb79d68c8e7f87587a9409f9"
+    },
+    {
+      "path": "examples/train_rollouts_step_0025.jsonl",
+      "size": 13061,
+      "sha256": "2668b61eb560807a454184d502a349ac7fcc41e5ebf39d7f5c992c751efd21bc"
+    },
+    {
+      "path": "examples/train_rollouts_step_0026.jsonl",
+      "size": 13053,
+      "sha256": "2b1a4af3422dff18cad216ffb562fd362606c886130533112b94066beb4829df"
+    },
+    {
+      "path": "examples/train_rollouts_step_0027.jsonl",
+      "size": 13109,
+      "sha256": "21661ece65d5e6f3ffb63496d2c25716524740d37c750a26eedffe3971d25f62"
+    },
+    {
+      "path": "examples/train_rollouts_step_0028.jsonl",
+      "size": 13083,
+      "sha256": "79a275b4b2ce17d847d9a8e23e7b5fcb61121da57d128236a67a2387aaa9cf5c"
+    },
+    {
+      "path": "examples/train_rollouts_step_0029.jsonl",
+      "size": 13129,
+      "sha256": "61c386a9081d3089b7ac1cf5ada5704ac227a076e62b2a83f55c1a685abcfe3a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0030.jsonl",
+      "size": 12933,
+      "sha256": "56538817c50988a2c0745ced19b1ff3ffd1d766e54eb31a89a4335ca65b3f780"
+    },
+    {
+      "path": "examples/train_rollouts_step_0031.jsonl",
+      "size": 13002,
+      "sha256": "0aeb3db49875547f26c6b832b14ded7040138865411aad26fead55f7fcc278e7"
+    },
+    {
+      "path": "examples/train_rollouts_step_0032.jsonl",
+      "size": 13152,
+      "sha256": "48bbcad45d143919988d96df4696c144922593348497230cedf2a21a7d5fe841"
+    },
+    {
+      "path": "examples/train_rollouts_step_0033.jsonl",
+      "size": 13182,
+      "sha256": "cb56d42fa64ec1b29d5a0dfae9628b3118ec201990d223e2fff12c74146e14f4"
+    },
+    {
+      "path": "examples/train_rollouts_step_0034.jsonl",
+      "size": 13055,
+      "sha256": "c87236f61d8405be032a804b540c3d5f857b231d30a8e498770155f34aaa1a21"
+    },
+    {
+      "path": "examples/train_rollouts_step_0035.jsonl",
+      "size": 13175,
+      "sha256": "9a45a6cdf3fd3d537feca4ce3aac3d263a190af9b09397447fbe79f1f797e1ca"
+    },
+    {
+      "path": "examples/train_rollouts_step_0036.jsonl",
+      "size": 13246,
+      "sha256": "334f4a9a38001330ef12f2de9f66e42cf0640688d1e94a54c413a5e56f679227"
+    },
+    {
+      "path": "examples/train_rollouts_step_0037.jsonl",
+      "size": 12968,
+      "sha256": "d8605d933f13f24592950ebb59a396a1d203b1c88e7feac6a112d76eaadcb9b6"
+    },
+    {
+      "path": "examples/train_rollouts_step_0038.jsonl",
+      "size": 12784,
+      "sha256": "444fb7c19222392d9a9b32576dfba66996e570b0ad4c1e67f10ca217f79c79c5"
+    },
+    {
+      "path": "examples/train_rollouts_step_0039.jsonl",
+      "size": 12913,
+      "sha256": "bf046d0b36c7ad05c3cc2fe05d579e67ce0aa8ded50a44cd8a65c2b256e16e2a"
+    },
+    {
+      "path": "examples/train_rollouts_step_0040.jsonl",
+      "size": 12959,
+      "sha256": "14881ebb95a37b66db3981e1ef694ededda301eb0c52c7c46d256d6224fbe510"
+    },
+    {
+      "path": "examples/train_rollouts_step_0041.jsonl",
+      "size": 12920,
+      "sha256": "728a8947ee780e6494b65030de9c150ca71ec77fe244fabff141f87093fdae49"
+    },
+    {
+      "path": "examples/train_rollouts_step_0042.jsonl",
+      "size": 12892,
+      "sha256": "783ba41919a48726e5a96c108f3de9a10878826a7d2e2faf284b8a8ceba5b960"
+    },
+    {
+      "path": "examples/train_rollouts_step_0043.jsonl",
+      "size": 13111,
+      "sha256": "a339d372179b6b2cb37e9bc6fea06162139d796a1309bd154ecbbab3254eb1c1"
+    },
+    {
+      "path": "examples/train_rollouts_step_0044.jsonl",
+      "size": 13298,
+      "sha256": "4dea418a85665677da50c648c669cfb7df3c2d0d076512881fb1727d9bee8373"
+    },
+    {
+      "path": "examples/train_rollouts_step_0045.jsonl",
+      "size": 12975,
+      "sha256": "d8d5f8b8150a072a020c58dbf1259a3ac57559032069b27a31816aa5326c9734"
+    },
+    {
+      "path": "examples/train_rollouts_step_0046.jsonl",
+      "size": 13106,
+      "sha256": "bed32c79bb69f8743ea7ebf8b661edd4c29313199974b4497760261c1cb25be8"
+    },
+    {
+      "path": "examples/train_rollouts_step_0047.jsonl",
+      "size": 13174,
+      "sha256": "6bb88f3af70e14a4753817ad28ce7ca5cd7a7ebc683a925affc5559f60d27f5e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0048.jsonl",
+      "size": 13131,
+      "sha256": "3e2fb1c9323d41ea5c677f84f90404e531559cdfdcf59f1b1fb16fcca3451899"
+    },
+    {
+      "path": "examples/train_rollouts_step_0049.jsonl",
+      "size": 13012,
+      "sha256": "c4362b3d901873057140fbf9f50994d4f1786cfe140aea169faeea4ca1c1a161"
+    },
+    {
+      "path": "examples/train_rollouts_step_0050.jsonl",
+      "size": 13156,
+      "sha256": "25927a7b8fe55cd0da89d46e565187bbf3b61fbfc59d5e0fe0cad33516c8a128"
+    },
+    {
+      "path": "examples/train_rollouts_step_0051.jsonl",
+      "size": 12813,
+      "sha256": "50608794a900a1c31423f0ec3e65c494a8e9fbe91505bcc74b33af28822600a5"
+    },
+    {
+      "path": "examples/train_rollouts_step_0052.jsonl",
+      "size": 13070,
+      "sha256": "b4418bbc13c61b0688a1e2b99a03c7c016268d833bff63060d4ecdebe6bc3311"
+    },
+    {
+      "path": "examples/train_rollouts_step_0053.jsonl",
+      "size": 12995,
+      "sha256": "70c69e14fa91ff4ba6a3f878c40b903bd568258647d11b5d129f9f74b5cb491f"
+    },
+    {
+      "path": "examples/train_rollouts_step_0054.jsonl",
+      "size": 12860,
+      "sha256": "69bd67c62f5bc0b9150599f72ccfb9de270e2ef972481e56ac46424a957ff63d"
+    },
+    {
+      "path": "examples/train_rollouts_step_0055.jsonl",
+      "size": 13101,
+      "sha256": "5d75406803a273f27f9c5fe2726be820e91d1c8c13d20d8ee6c4aa1aadc65612"
+    },
+    {
+      "path": "examples/train_rollouts_step_0056.jsonl",
+      "size": 12984,
+      "sha256": "cc450f9f81b40af7ea9a6a60f85fa155b1d5e6ccabaae57fc97b62cc4d64299e"
+    },
+    {
+      "path": "examples/train_rollouts_step_0057.jsonl",
+      "size": 13104,
+      "sha256": "6b0458bff74a9cc1e1b1f2c5b813a6c6bc675e4050f1cffcc6f74317e1f46fea"
+    },
+    {
+      "path": "examples/train_rollouts_step_0058.jsonl",
+      "size": 13223,
+      "sha256": "e5377f47b4220cac0f7b8ec879495f7e62c558d86ccf76a9bafc03929ee6cbeb"
+    },
+    {
+      "path": "examples/train_rollouts_step_0059.jsonl",
+      "size": 12841,
+      "sha256": "502b3e9e3877286fd887b2ed59487831ba65e727898ee33043ca2bbf0580204d"
+    },
+    {
+      "path": "metrics.jsonl",
+      "size": 105086,
+      "sha256": "d0f8c7321d31718cd2ee61149369be040491d0d1573defe29da3dc666d8788f8"
+    },
+    {
+      "path": "plots/activation_agreement_price_check_eval_wrong_hint.png",
+      "size": 34832,
+      "sha256": "86c7b3f86518b79cac120cc49716f8ce3691b8125bf246a063a6eeebb8c7b891"
+    },
+    {
+      "path": "plots/activation_invariance.png",
+      "size": 26660,
+      "sha256": "137d8b0b1811b09761a4ce6cede252736e56492d898e03b870d4509a3ac96514"
+    },
+    {
+      "path": "plots/length_control.png",
+      "size": 53338,
+      "sha256": "7ad21bd4c26448f78417c3061f2eea24267e4c04c9ed9ea377da047ff76a7f4d"
+    },
+    {
+      "path": "plots/omega_diagnostics.png",
+      "size": 44683,
+      "sha256": "cb0ed20be7f167cfca615fdb78b8f48f5e3755cb01a6c1d5623d02844c142123"
+    },
+    {
+      "path": "plots/output_agreement_price_check_eval_balanced_hint.png",
+      "size": 46178,
+      "sha256": "320cd3d06eb34ea74444879027b8b889d04081068283b42bdd0c428ae49db7c1"
+    },
+    {
+      "path": "plots/output_agreement_price_check_eval_wrong_hint.png",
+      "size": 46420,
+      "sha256": "3935981c6b131cf6929d6254a8d7934089f64ea49cc4367f492cc708713468fb"
+    },
+    {
+      "path": "plots/reward_accuracy.png",
+      "size": 66747,
+      "sha256": "cbe1fac9abef96f272b4b85b193a0bf9c66d9a1bf33a12a3e77c6421daded4ff"
+    },
+    {
+      "path": "plots/wrong_hint_sycophancy.png",
+      "size": 34983,
+      "sha256": "4a8ffbf313249140b254cf5561ab2ecef1f0ad4702142e708c2719c4e6d71814"
+    },
+    {
+      "path": "summary.json",
+      "size": 844,
+      "sha256": "401ed8cd0bbe4f698ab0f2487995efeb5425d2c86f4dd531929ecf4e1227f047"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "reference_dir": "results/sycophancy_full_lora_price_smoke_lr2e5_n256_seed290403",
+  "files": [
+    {
+      "path": "adapter/final/README.md",
+      "size": 5206,
+      "sha256": "a4ab1811b31eee6883ea13e0b1d544b835409344653839852f2a5df989268788"
+    },
+    {
+      "path": "adapter/final/adapter_config.json",
+      "size": 1289,
+      "sha256": "9d84bc38523e08023c630bab1022918a18605a3ea19f184ff744213b6bc5a93e"
+    },
+    {
+      "path": "adapter/final/adapter_model.safetensors",
+      "size": 17640136,
+      "sha256": "5eae589cead76daa0af7f45e5b4de4908629eb7ccba27ec0515320314796cded"
+    },
+    {
+      "path": "config.yaml",
+      "size": 2182,
+      "sha256": "925af4d75c3963669a06cea211531de5db7642c0dfc991a053115ccadc3fa460"
+    },
+    {
+      "path": "examples/train_rollouts_step_0000.jsonl",
+      "size": 13072,
+      "sha256": "64d1efad5b27dabe9926af6165c57e165f5e23b2ba02dc5b006a3fc9d7901541"
+    },
+    {
+      "path": "examples/train_rollouts_step_0001.jsonl",
+      "size": 13098,
+      "sha256": "431965d4503b7c1672e1a8fdd3832ce29189875e7a18996533f08986676fc9b5"
+    },
+    {
+      "path": "metrics.jsonl",
+      "size": 7891,
+      "sha256": "c5e863483bc2debcba853dad2afa7827d27f31851e69d35b941a45958a4a47cb"
+    },
+    {
+      "path": "summary.json",
+      "size": 778,
+      "sha256": "790e420cd2e177579da9f8604312647e9a7e9d2ff6aa4a72e6cd17d09417c88e"
+    }
+  ]
+}
