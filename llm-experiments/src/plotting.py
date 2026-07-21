@@ -45,6 +45,18 @@ def _first_real_value(values, default=0.0):
     return default
 
 
+def price_plot_series(metrics: list[dict], distribution: str, trait_name: str, observed_key: str):
+    observed = _series(metrics, lambda m: m["observed_eval"][distribution][observed_key])
+    predicted = _carry_series(metrics, lambda m: m["price"][distribution][trait_name]["cov_cum"])
+    base = _first_real_value(observed)
+    observed = [value if math.isnan(value) else value - base for value in observed]
+    residual = [
+        float("nan") if math.isnan(obs) or math.isnan(pred) else obs - pred
+        for obs, pred in zip(observed, predicted)
+    ]
+    return observed, predicted, residual
+
+
 def _summary_values(runs: list[dict], key: str):
     return [float("nan") if item.get(key) is None else item[key] for item in runs]
 
@@ -63,12 +75,12 @@ def _save_line_plot(path: Path, x, series, ylabel: str):
 
 def _price_plot(path: Path, metrics: list[dict], distribution: str, trait_name: str, observed_key: str):
     x = [m["step"] for m in metrics]
-    observed = _carry_series(metrics, lambda m: m["observed_eval"][distribution][observed_key])
-    predicted = _carry_series(metrics, lambda m: m["price"][distribution][trait_name]["cov_cum"])
-    if observed:
-        base = _first_real_value(observed)
-        observed = [value - base for value in observed]
-    residual = [obs - pred for obs, pred in zip(observed, predicted)]
+    observed, predicted, residual = price_plot_series(
+        metrics,
+        distribution,
+        trait_name,
+        observed_key,
+    )
     _save_line_plot(
         path,
         x,
@@ -92,42 +104,42 @@ def plot_run(run_dir: str | Path) -> list[Path]:
         (
             "reward_accuracy.png",
             [
-                ("Reward", _carry_series(metrics, lambda m: m["train"]["reward_mean"])),
-                ("Accuracy", _carry_series(metrics, lambda m: m["train"]["accuracy"])),
+                ("Reward", _series(metrics, lambda m: m["train"]["reward_mean"])),
+                ("Accuracy", _series(metrics, lambda m: m["train"]["accuracy"])),
             ],
             "Level",
         ),
         (
             "wrong_hint_sycophancy.png",
             [
-                ("Wrong-hint agreement", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["wrong_hint_agreement_rate"])),
-                ("Sycophantic error", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["sycophantic_error_rate"])),
-                ("Correct disagreement", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["correct_disagreement_rate"])),
+                ("Wrong-hint agreement", _series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["wrong_hint_agreement_rate"])),
+                ("Sycophantic error", _series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["sycophantic_error_rate"])),
+                ("Correct disagreement", _series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["correct_disagreement_rate"])),
             ],
             "Rate",
         ),
         (
             "activation_invariance.png",
             [
-                ("Max abs", _carry_series(metrics, lambda m: m["activation_invariance"]["max_abs"])),
-                ("Mean abs", _carry_series(metrics, lambda m: m["activation_invariance"]["mean_abs"])),
+                ("Max abs", _series(metrics, lambda m: m["activation_invariance"]["max_abs"])),
+                ("Mean abs", _series(metrics, lambda m: m["activation_invariance"]["mean_abs"])),
             ],
             "Activation score change",
         ),
         (
             "omega_diagnostics.png",
             [
-                ("mean omega", _carry_series(metrics, lambda m: m["price"]["eval_wrong_hint"]["output_agreement"]["mean_omega"])),
-                ("std omega", _carry_series(metrics, lambda m: m["price"]["eval_wrong_hint"]["output_agreement"]["std_omega"])),
-                ("ESS", _carry_series(metrics, lambda m: m["price"]["eval_wrong_hint"]["output_agreement"]["ess"])),
+                ("mean omega", _series(metrics, lambda m: m["price"]["eval_wrong_hint"]["output_agreement"]["mean_omega"])),
+                ("std omega", _series(metrics, lambda m: m["price"]["eval_wrong_hint"]["output_agreement"]["std_omega"])),
+                ("ESS", _series(metrics, lambda m: m["price"]["eval_wrong_hint"]["output_agreement"]["ess"])),
             ],
             "Diagnostic",
         ),
         (
             "length_control.png",
             [
-                ("Train length", _carry_series(metrics, lambda m: m["train"]["mean_completion_token_length"])),
-                ("Wrong-hint eval length", _carry_series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["mean_completion_token_length"])),
+                ("Train length", _series(metrics, lambda m: m["train"]["mean_completion_token_length"])),
+                ("Wrong-hint eval length", _series(metrics, lambda m: m["observed_eval"]["eval_wrong_hint"]["mean_completion_token_length"])),
             ],
             "Tokens",
         ),

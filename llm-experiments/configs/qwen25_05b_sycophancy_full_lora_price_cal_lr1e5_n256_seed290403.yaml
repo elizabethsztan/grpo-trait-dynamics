@@ -1,0 +1,46 @@
+RunConfig:
+  name: sycophancy_full_lora_price_cal_lr1e5_n256_seed290403
+  seed: 290403
+  results_dir: results
+  fail_if_exists: true
+  device: auto
+  dtype: auto
+  debug: false
+
+ModelConfig:
+  model_name: Qwen/Qwen2.5-0.5B-Instruct
+  trust_remote_code: false
+  use_gradient_checkpointing: false
+
+LoRAConfig:
+  hook_layer: 12
+  layer_scope: all
+
+TrainConfig:
+  num_steps: 60
+  train_prompts_per_step: 16
+  group_size: 8
+  learning_rate: 1.0e-5
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  eps: 1.0e-8
+  kl_coef: 0.0
+
+PriceConfig:
+  enabled: true
+  eval_distributions:
+    - eval_balanced_hint
+    - eval_wrong_hint
+  prompts_per_distribution: 128
+  completions_per_prompt: 2
+  compute_shuffled_null: true
+  compute_reused_rollout_diagnostic: true
+
+ObservedEvalConfig:
+  eval_every: 5
+  prompts_per_distribution: 128
+  completions_per_prompt: 1
+
+ActivationProbeConfig:
+  enabled: false
+
