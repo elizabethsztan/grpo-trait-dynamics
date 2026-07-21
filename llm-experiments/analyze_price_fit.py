@@ -20,9 +20,9 @@ APPROVED_REFERENCE_MANIFEST_SHA256 = (
     "d0cdfd50420be8e21611fa5ae4a79e6de94b331178e2ee770b51d140241f97fb"
 )
 CALIBRATION_CONFIGS = {
-    1e-5: "configs/qwen25_05b_sycophancy_full_lora_price_cal_lr1e5_n256_seed290403.yaml",
-    2e-5: "configs/qwen25_05b_sycophancy_full_lora_price_cal_lr2e5_n256_seed290403.yaml",
-    3e-5: "configs/qwen25_05b_sycophancy_full_lora_price_cal_lr3e5_n256_seed290403.yaml",
+    1e-5: "configs/qwen25_05b_sycophancy_full_lora_price_cal_lr1e5_n256_seed290403_retry1.yaml",
+    2e-5: "configs/qwen25_05b_sycophancy_full_lora_price_cal_lr2e5_n256_seed290403_retry1.yaml",
+    3e-5: "configs/qwen25_05b_sycophancy_full_lora_price_cal_lr3e5_n256_seed290403_retry1.yaml",
 }
 APPROVED_REFERENCE_METADATA = {
     "reference_dir": APPROVED_REFERENCE_DIR,
@@ -217,6 +217,11 @@ def validate_run_protocol(
             )
 
     expected_layers = list(range(24))
+    expected_allocator = (
+        "expandable_segments:True"
+        if run_cfg.get("cuda_allocator_expandable_segments", False)
+        else None
+    )
     if summary.get("run_name") != run_cfg["name"]:
         raise ValueError("summary run_name does not match resolved config")
     if int(summary.get("num_steps", -1)) != expected_steps:
@@ -225,6 +230,8 @@ def validate_run_protocol(
         raise ValueError("summary does not report full-layer LoRA")
     if summary.get("lora_layer_indices") != expected_layers:
         raise ValueError("summary does not report all 24 LoRA layers")
+    if summary.get("cuda_allocator_config") != expected_allocator:
+        raise ValueError("summary does not report the configured CUDA allocator")
 
     expected_config = Path(expected_config)
     if config != load_config(expected_config):
@@ -239,6 +246,7 @@ def validate_run_protocol(
         "learning_rate": learning_rate,
         "layer_scope": layer_scope,
         "lora_layer_indices": expected_layers,
+        "cuda_allocator_config": expected_allocator,
         "price_distributions": list(price_cfg["eval_distributions"]),
         "price_samples_per_distribution": price_samples,
         "expected_config": str(expected_config),

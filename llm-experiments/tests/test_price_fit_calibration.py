@@ -19,6 +19,7 @@ from analyze_price_fit import (
 from src.config import load_config, save_config
 import src.plotting as plotting
 from src.plotting import price_plot_series
+from train_grpo_price import _configure_cuda_allocator
 
 
 DISTRIBUTIONS = ("eval_balanced_hint", "eval_wrong_hint")
@@ -147,11 +148,12 @@ def test_calibration_selection_uses_score_then_lower_lr_tie_break(monkeypatch):
             "lora_layer_indices": list(range(24)),
             "price_distributions": list(DISTRIBUTIONS),
             "price_samples_per_distribution": 256,
+            "cuda_allocator_config": "expandable_segments:True",
             "run_dir": f"results/calibration_lr{int(learning_rate / 1e-5)}",
-            "expected_config": (
-                "configs/qwen25_05b_sycophancy_full_lora_price_cal_"
-                f"lr{int(learning_rate / 1e-5)}e5_n256_seed290403.yaml"
-            ),
+                "expected_config": (
+                    "configs/qwen25_05b_sycophancy_full_lora_price_cal_"
+                    f"lr{int(learning_rate / 1e-5)}e5_n256_seed290403_retry1.yaml"
+                ),
         }
 
     config_dir = Path(__file__).parents[1]
@@ -450,13 +452,15 @@ def test_standard_plots_do_not_carry_sparse_observed_values(tmp_path, monkeypatc
 def test_calibration_configs_differ_only_by_name_and_learning_rate():
     config_dir = Path(__file__).parents[1] / "configs"
     paths = [
-        config_dir / f"qwen25_05b_sycophancy_full_lora_price_cal_lr{lr}e5_n256_seed290403.yaml"
+        config_dir / f"qwen25_05b_sycophancy_full_lora_price_cal_lr{lr}e5_n256_seed290403_retry1.yaml"
         for lr in (1, 2, 3)
     ]
     configs = [load_config(path) for path in paths]
     for config, expected_lr in zip(configs, (1e-5, 2e-5, 3e-5)):
         assert config["RunConfig"]["seed"] == 290403
         assert config["RunConfig"]["fail_if_exists"] is True
+        assert config["RunConfig"]["cuda_allocator_expandable_segments"] is True
+        assert config["RunConfig"]["name"].endswith("_retry1")
         assert config["LoRAConfig"]["layer_scope"] == "all"
         assert config["ActivationProbeConfig"]["enabled"] is False
         assert config["TrainConfig"]["num_steps"] == 60
@@ -517,3 +521,31 @@ def test_price_calibration_memory_smoke_reproduces_full_training_batch():
     ]
     assert config["PriceConfig"]["prompts_per_distribution"] == 128
     assert config["PriceConfig"]["completions_per_prompt"] == 2
+
+
+def test_configure_cuda_allocator_runs_before_torch_import(monkeypatch):
+    monkeypatch.delenv("PYTORCH_CUDA_ALLOC_CONF", raising=False)
+    effective = _configure_cuda_allocator({"cuda_allocator_expandable_segments": True})
+    assert effective == "expandable_segments:True"
+    assert (
+        __import__("os").environ["PYTORCH_CUDA_ALLOC_CONF"]
+        == "expandable_segments:True"
+    )
+
+    monkeypatch.setenv("PYTORCH_CUDA_ALLOC_CONF", " expandable_segments:True ")
+    effective = _configure_cuda_allocator({"cuda_allocator_expandable_segments": True})
+    assert effective == "expandable_segments:True"
+    assert __import__("os").environ["PYTORCH_CUDA_ALLOC_CONF"] == effective
+
+    for conflicting in (
+        "expandable_segments:False",
+        "max_split_size_mb:128",
+        "max_split_size_mb:128, expandable_segments:False",
+    ):
+        monkeypatch.setenv("PYTORCH_CUDA_ALLOC_CONF", conflicting)
+        with pytest.raises(ValueError, match="requires PYTORCH_CUDA_ALLOC_CONF"):
+            _configure_cuda_allocator({"cuda_allocator_expandable_segments": True})
+
+    monkeypatch.setenv("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
+    assert _configure_cuda_allocator({"cuda_allocator_expandable_segments": False}) is None
+    assert __import__("os").environ["PYTORCH_CUDA_ALLOC_CONF"] == "max_split_size_mb:128"

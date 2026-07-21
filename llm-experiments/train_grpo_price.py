@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import random
 
@@ -21,6 +22,20 @@ from src.grpo import (
 )
 from src.lora_freeze import apply_lora, trainable_lora_layer_indices
 from src.price import CumulativePriceTracker
+
+
+def _configure_cuda_allocator(run_cfg: dict) -> str | None:
+    if not run_cfg.get("cuda_allocator_expandable_segments", False):
+        return None
+    required = "expandable_segments:True"
+    inherited = os.environ.get("PYTORCH_CUDA_ALLOC_CONF")
+    if inherited is not None and inherited.strip() != required:
+        raise ValueError(
+            "cuda_allocator_expandable_segments requires "
+            f"PYTORCH_CUDA_ALLOC_CONF={required!r}, got {inherited!r}"
+        )
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = required
+    return required
 
 
 def _resolve_device(run_cfg):
@@ -170,12 +185,14 @@ def _activation_invariance(model, tokenizer, probe, cfg, data_cfg, seed: int, de
 
 
 def run_training(config: dict) -> Path:
+    run_cfg = config["RunConfig"]
+    cuda_allocator_config = _configure_cuda_allocator(run_cfg)
+
     import peft
     import torch
     import transformers
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    run_cfg = config["RunConfig"]
     model_cfg = config["ModelConfig"]
     train_cfg = config["TrainConfig"]
     price_cfg = config["PriceConfig"]
@@ -342,6 +359,7 @@ def run_training(config: dict) -> Path:
         "num_steps": train_cfg["num_steps"],
         "metrics_path": str(metrics_path),
         "activation_probe_enabled": bool(activation_cfg.get("enabled", True)),
+        "cuda_allocator_config": cuda_allocator_config,
         "lora_layer_scope": config["LoRAConfig"].get("layer_scope", "above_hook"),
         "lora_layer_indices": lora_layer_indices,
         "trainable_parameter_count": trainable_parameter_count,
