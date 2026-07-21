@@ -549,3 +549,27 @@ def test_configure_cuda_allocator_runs_before_torch_import(monkeypatch):
     monkeypatch.setenv("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:128")
     assert _configure_cuda_allocator({"cuda_allocator_expandable_segments": False}) is None
     assert __import__("os").environ["PYTORCH_CUDA_ALLOC_CONF"] == "max_split_size_mb:128"
+
+
+def test_n512_fallback_changes_only_name_and_price_sample_count():
+    config_dir = Path(__file__).parents[1] / "configs"
+    n256 = load_config(
+        config_dir
+        / "qwen25_05b_sycophancy_full_lora_price_cal_lr1e5_n256_seed290403_retry1.yaml"
+    )
+    n512 = load_config(
+        config_dir
+        / "qwen25_05b_sycophancy_full_lora_price_cal_lr1e5_n512_seed290403_retry1.yaml"
+    )
+    assert n512["RunConfig"]["fail_if_exists"] is True
+    assert n512["RunConfig"]["cuda_allocator_expandable_segments"] is True
+    assert n512["TrainConfig"]["num_steps"] == 60
+    assert n512["TrainConfig"]["learning_rate"] == 1e-5
+    assert n512["PriceConfig"]["prompts_per_distribution"] == 256
+    assert n512["PriceConfig"]["completions_per_prompt"] == 2
+
+    n256["RunConfig"].pop("name")
+    n512["RunConfig"].pop("name")
+    n256["PriceConfig"].pop("prompts_per_distribution")
+    n512["PriceConfig"].pop("prompts_per_distribution")
+    assert n512 == n256
