@@ -13,6 +13,17 @@ from run_experiment import run_config, cfg_value
 
 LOGGER = logging.getLogger(__name__)
 
+plt.rcParams.update({
+    "font.family": "serif",
+    "font.size": 12,
+    "axes.labelsize": 13,
+    "legend.fontsize": 11,
+    "xtick.labelsize": 11,
+    "ytick.labelsize": 11,
+    "axes.spines.top": False,
+    "axes.spines.right": False,
+})
+
 
 def plot_grid(gammas, ps, results, colors, output_dir, stem):
     n_rows = len(gammas)
@@ -51,6 +62,63 @@ def plot_grid(gammas, ps, results, colors, output_dir, stem):
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, loc="upper center", ncol=2)
     fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.savefig(output_dir / f"{stem}.png", dpi=150)
+    fig.savefig(output_dir / f"{stem}.pdf")
+    plt.close(fig)
+
+
+def plot_combined_grid(gammas, ps, results, colors, output_dir, stem):
+    # Absolute-level grid: observed trait T_t, reward R_t, and the Price prediction
+    # shifted up by T_0 (= T_0 + sum Cov) as a dashed validator overlaying the trait line.
+    n_rows = len(gammas)
+    n_cols = len(ps)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(2.4 * n_cols, 1.9 * n_rows),
+                             sharex=True, sharey=True, squeeze=False)
+
+    for i, gamma in enumerate(gammas):
+        for j, p in enumerate(ps):
+            ax = axes[i][j]
+            res = results[(i, j)]
+            steps_axis = res["steps_axis"]
+            trait_mean = res["trait_mean"]
+            trait_sem = res["trait_sem"]
+            reward_mean = res["reward_mean"]
+            reward_sem = res["reward_sem"]
+            # Price prediction is a cumulative change; lift it to absolute trait level by T_0.
+            t0 = trait_mean[0]
+            pred = t0 + res["predicted_cum_mean"]
+            pred_sem = res["predicted_cum_sem"]
+
+            pred_color = "#08306b"  # navy: a darker shade of the trait blue (this predicts the trait)
+
+            ax.fill_between(steps_axis, trait_mean - trait_sem, trait_mean + trait_sem,
+                            alpha=0.25, color=colors[0], zorder=1)
+            ax.fill_between(steps_axis, reward_mean - reward_sem, reward_mean + reward_sem,
+                            alpha=0.25, color=colors[1], zorder=1)
+            ax.fill_between(steps_axis, pred - pred_sem, pred + pred_sem,
+                            alpha=0.2, color=pred_color, zorder=1)
+            # Trait solid drawn thick underneath; navy prediction dashed thinner on top,
+            # so the trait shows between the dashes -- the overlap is the point of the figure.
+            ax.plot(steps_axis, trait_mean, color=colors[0], lw=1.8, zorder=2,
+                    label=r"Trait $T_t$" if i == 0 and j == 0 else None)
+            ax.plot(steps_axis, reward_mean, color=colors[1], lw=1.5, zorder=2,
+                    label=r"Reward $R_t$" if i == 0 and j == 0 else None)
+            ax.plot(steps_axis, pred, color=pred_color, lw=1.1, ls="--", zorder=3,
+                    label=r"$T_0 + \sum \mathrm{Cov}(\omega, s)$" if i == 0 and j == 0 else None)
+            ax.axhline(trait_mean[0], color="grey", ls="--", lw=0.8, zorder=0)
+            ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
+
+            if i == 0:
+                ax.set_title(rf"$p$ = {p}")
+            if j == 0:
+                ax.set_ylabel(rf"$\gamma$ = {gamma}")
+            if i == n_rows - 1:
+                ax.set_xlabel(r"step $t$")
+
+    fig.supylabel("Trait / Reward value")
+    handles, labels = axes[0][0].get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, loc="upper center", ncol=3)
+    fig.tight_layout(rect=(0.02, 0, 1, 0.96))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)
@@ -173,6 +241,7 @@ def run_gamma_p_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_seed, n
 
     plot_grid(gammas, ps, results, colors, plots_dir, "grid_trait_reward")
     if price_check:
+        plot_combined_grid(gammas, ps, results, colors, plots_dir, "grid_trait_reward_price")
         plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_exact",
                                "predicted_cum", r"Exact $\sum \mathrm{Cov}(\omega, s)$")
         if "sampled_cum_mean" in next(iter(results.values())):
