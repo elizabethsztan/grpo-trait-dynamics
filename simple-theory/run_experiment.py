@@ -15,11 +15,13 @@ LOGGER = logging.getLogger(__name__)
 
 plt.rcParams.update({
     "font.family": "serif",
-    "font.size": 12,
-    "axes.labelsize": 13,
-    "legend.fontsize": 11,
-    "xtick.labelsize": 11,
-    "ytick.labelsize": 11,
+    "font.size": 18,
+    "axes.labelsize": 20,
+    "axes.titlesize": 20,
+    "figure.labelsize": 22,
+    "legend.fontsize": 18,
+    "xtick.labelsize": 16,
+    "ytick.labelsize": 16,
     "axes.spines.top": False,
     "axes.spines.right": False,
 })

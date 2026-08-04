@@ -15,11 +15,13 @@ LOGGER = logging.getLogger(__name__)
 
 plt.rcParams.update({
     "font.family": "serif",
-    "font.size": 12,
-    "axes.labelsize": 13,
-    "legend.fontsize": 11,
-    "xtick.labelsize": 11,
-    "ytick.labelsize": 11,
+    "font.size": 18,
+    "axes.labelsize": 20,
+    "axes.titlesize": 20,
+    "figure.labelsize": 22,
+    "legend.fontsize": 18,
+    "xtick.labelsize": 16,
+    "ytick.labelsize": 16,
     "axes.spines.top": False,
     "axes.spines.right": False,
 })
@@ -51,6 +53,7 @@ def plot_grid(gammas, ps, results, colors, output_dir, stem):
                     label=r"Reward $R_t$" if i == 0 and j == 0 else None)
             ax.axhline(trait_mean[0], color="grey", ls="--", lw=0.8, zorder=0)
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
+            ax.set_yticks([0.0, 0.25, 0.5, 0.75])
 
             if i == 0:
                 ax.set_title(rf"$p$ = {p}")
@@ -107,6 +110,7 @@ def plot_combined_grid(gammas, ps, results, colors, output_dir, stem):
                     label=r"$T_0 + \sum \mathrm{Cov}(\omega, s)$" if i == 0 and j == 0 else None)
             ax.axhline(trait_mean[0], color="grey", ls="--", lw=0.8, zorder=0)
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
+            ax.set_yticks([0.0, 0.25, 0.5, 0.75])
 
             if i == 0:
                 ax.set_title(rf"$p$ = {p}")
