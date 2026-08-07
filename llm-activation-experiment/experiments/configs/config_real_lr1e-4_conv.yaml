@@ -1,0 +1,25 @@
+# Pool-dump config for the cov(omega,s) N-convergence bands, run on the SAME banked
+# real_lr1e-4 checkpoints as config_real_lr1e-4.yaml (identical except price_samples).
+# Launch as a raw-pool dump over ALL transitions:
+#   sbatch slurm/real_price.sh config_real_lr1e-4_conv --dump-pool --out-suffix _conv
+# -> draws max(price_samples)=1024 rollouts/transition once, saves omega + s per rollout to
+#    results/real_lr1e-4/pool_conv.npz (direct estimator skipped entirely). Then, offline:
+#   uv run python -m analysis.bands_from_pool --config .../config_real_lr1e-4_conv.yaml \
+#       --pool-suffix _conv --n-list 16,32,64,128,256,512
+# -> bootstrap error bands per feature (N=1024 full pool = reference line). Pool=1024 gives
+#    the heavy-tailed omega enough support for trustworthy bootstrap variance at large n.
+#    OutputConfig.name stays real_lr1e-4 so features.json + checkpoints resolve.
+ModelConfig:
+  backbone: Qwen/Qwen3.5-2B-Base
+  sae_repo: Qwen/SAE-Res-Qwen3.5-2B-Base-W32K-L0_100
+  layer_L: 12
+  seed: 290402
+DataConfig: {dataset: gsm8k, n_train: 2000, n_feat: 300, n_eval: 500}
+GenConfig: {temperature: 1.0, top_p: 1.0, top_k: 0, max_new_tokens: 256, prompt_style: few_shot, n_shots: 4}
+CapabilityConfig: {n_prompts: 100, temperature: 1.0, target_success_band: [0.2, 0.7]}
+FeatureDiscoveryConfig: {K: 8, candidate_layers: [12], min_activity: 0.1, top_k_each_sign: 5, val_frac: 0.5, n_controls: 5}
+GRPOConfig: {steps: 20, batch_size: 32, G: 8, lr: 1.0e-4, kl_coef: 0.02, clip: null, lora_rank: 16, lora_layers: ">L", checkpoint_every: 1, num_runs: 1, seed: 290402}
+# Only max(price_samples) matters in --dump-pool mode: draw a 1024-rollout pool per
+# transition; all smaller-n bands are resampled from it offline. direct_samples unused.
+PriceEvalConfig: {price_samples: [1024], direct_samples: 512, eval_prompts: 500, batch_size: 8}
+OutputConfig: {results_dir: results, name: real_lr1e-4}

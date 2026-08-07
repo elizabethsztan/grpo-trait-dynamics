@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 docs/
 .DS_Store
+inact-src
