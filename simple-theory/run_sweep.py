@@ -119,7 +119,7 @@ def plot_combined_grid(gammas, ps, results, colors, output_dir, stem):
             if i == n_rows - 1:
                 ax.set_xlabel(r"step $t$")
 
-    fig.supylabel("Trait / Reward value")
+    fig.supylabel(r"Expected trait / reward under $\pi_t$")
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, loc="upper center", ncol=3)
     fig.tight_layout(rect=(0.02, 0, 1, 0.96))
