@@ -160,6 +160,36 @@ The report embeds four comparison figures and per-run coefficient/error tables.
 Four CSVs save parameters, metrics, generated/observed trajectories, and signed
 residuals. Stop to discuss the results before selecting models or adding experiments.
 
+## LLM development transfer and selection diagnostics
+
+```bash
+.venv/bin/python -m closure_study.diagnose_llm \
+  --table results/closure_study/diagnostics_v3/transitions.jsonl \
+  --output results/closure_study/llm_diagnostics_v2
+```
+
+For the three above-hook output runs, compare constant S, affine S(T), and affine
+S(t). Fit each omitted run's coefficients on the other whole runs, using the same
+flux objective and measured old-state/flux pairs as above. Generate the target
+from its initial T and score only observed future checkpoints; own-run fits remain
+a reference. Pooling is restricted to one setting and trait. These previously
+inspected runs support a development transfer check, not prospective validation.
+
+For SAE traits, reuse the per-run affine beta(mu), affine gamma(mu), and kappa
+fits. Plot beta against both mu and time, alongside raw C and V. Compare selection
+residuals against V and skewness residuals against mu/time across runs. The default
+display feature is 25273, the first selected feature in the original pool;
+`--feature` explicitly selects another. A fourth figure summarizes residual
+correlations for every feature/run. Curved residual patterns can have small
+Pearson correlations; these serial, sampled observations do not supply calibrated
+uncertainty or establish state dependence rather than schedule dependence.
+
+Four embedded figures and per-run tables accompany five CSVs: binary parameters,
+metrics, trajectories, SAE points, and SAE summaries. The existing common valid-row
+mask applies to SAE component fits and residuals; raw measured points are retained.
+No additional continuous closure is fitted. Stop for discussion before expanding
+the closure family or planning new training.
+
 ## Sources and implementation reuse
 
 The archive contracts were inspected in `trajectory_forecast/artifacts.py` and

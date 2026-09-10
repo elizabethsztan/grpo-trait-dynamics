@@ -51,13 +51,18 @@ def observations(rows, binary):
     return observed
 
 
-def fit_series(rows):
+def transition_steps(rows):
     step = values(rows, "step")
     if (not np.isfinite(step).all() or (step != np.floor(step)).any() or (np.diff(step) != 1).any()
             or (values(rows, "step_end") != step + 1).any() or (values(rows, "interval") != 1).any()):
         raise ValueError("LLM comparison requires contiguous one-update transitions")
     if any(r.get("inspection_status") != "development" for r in rows):
         raise ValueError("LLM fitting is restricted to development runs")
+    return step.astype(int)
+
+
+def fit_series(rows):
+    step = transition_steps(rows)
     binary = rows[0]["family"] == "llm_binary"
     observed = observations(rows, binary)
     initial = observed[0, :1 if binary else 2]
