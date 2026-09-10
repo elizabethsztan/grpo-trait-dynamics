@@ -83,6 +83,45 @@ with embedded figures and per-run coefficient/error tables, and four CSVs:
 does not fit LLM runs, pool runs, add direct-Q models or exponential tilts, or
 select a winning model. Stop for discussion before expanding the comparison.
 
+## Development transfer and multiplicative flux correction
+
+The next agreed comparison tests binary transfer and the single correction
+Q = kappa beta M3, using saved controlled data:
+
+```bash
+.venv/bin/python -m closure_study.transfer_controlled \
+  --table results/closure_study/diagnostics_v3/transitions.jsonl \
+  --neural-archive results/trajectory_forecast/retrospective_20260723/simple-theory/main_reproduction_particles/neural/trajectories.npz \
+  --output results/closure_study/transfer_v1
+```
+
+Binary quadratic state/time laws retain three coefficients each. Own-run curves
+and upper roots describe heterogeneity; leave-one-run-out (LOO) fits use the other
+whole runs and generate the target from its initial T. Seeds change the environment
+as well as training randomness, so coefficient/root shifts need interpretation.
+
+Continuous kappa minimizes sum(Q - kappa beta M3)^2 through the origin, using
+measured beta and M3. Window estimates at steps 0:50, 50:100, 100:200, 200:500,
+and 500:1000 assess temporal variation; each window's share of sum(beta M3)^2
+shows how much it influences the whole-run fit. These window fits are diagnostics,
+not extra rollout models. Raw populations at steps 0, 10, 25, 50, 100, 200 locate
+the reweighting error by trait value. Weighted bin contributions sum exactly to
+Q - beta M3; powers of bin means are not substituted for within-bin moments.
+
+Affine beta(mu) and gamma(mu) are retained. Protocols distinguish own-run kappa,
+shared kappa (including the target), LOO kappa with own-run beta/gamma, and full
+LOO transfer of beta/gamma/kappa. Only the last transfers every fitted coefficient.
+An uncorrected own-run model remains the reference. Kappa changes only Q in the
+variance update, never the mean selection or the -(beta V)^2 correction. It is
+an empirical flux relation, not a claim that conditional reweighting is linear.
+
+The signed error separates into (Q - kappa beta M3), kappa beta(M3 - M3_hat), and
+kappa(beta - beta_hat)M3_hat. The original Q - beta M3 remains separately exported.
+The report embeds four figures and per-run tables; six CSVs retain parameters,
+metrics, trajectories, flux residuals, window diagnostics, and early trait bins.
+These are development transfer checks on inspected runs. No prospective validation,
+new training, extra state variables, or general direct-Q closure is introduced.
+
 ## Sources and implementation reuse
 
 The archive contracts were inspected in `trajectory_forecast/artifacts.py` and

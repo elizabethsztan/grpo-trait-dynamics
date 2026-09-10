@@ -37,7 +37,7 @@ def fit_curve(x, y, degree):
     return polyfit(x[valid], y[valid], degree)
 
 
-def rollout(initial, steps, selection, skewness=None, time=False):
+def rollout(initial, steps, selection, skewness=None, time=False, *, kappa=1.0):
     """Only the initial state and fitted laws enter the discrete recurrence."""
     path = np.full((len(steps) + 1, len(initial)), np.nan)
     path[0] = initial
@@ -49,7 +49,7 @@ def rollout(initial, steps, selection, skewness=None, time=False):
             c = b * v
             next_state = [mu + c]
             if skewness is not None:
-                q = b * polyval(mu, skewness) * v ** 1.5
+                q = kappa * b * polyval(mu, skewness) * v ** 1.5
                 next_state.append(v + q - c * c)
         if not np.isfinite(next_state).all():
             return path, f"nonfinite_state_at_{step + 1}"
@@ -73,7 +73,7 @@ def continuous_residuals(rows, selection, skewness):
             "delta_V_residual": q - values(rows, "C") ** 2 - (bhat * mhat - (bhat * v) ** 2)}
 
 
-def fit_run(rows):
+def validate_run(rows):
     steps = values(rows, "step")
     if (not np.isfinite(steps).all() or (steps != np.floor(steps)).any()
             or (np.diff(steps) != 1).any() or (values(rows, "step_end") != steps + 1).any()
@@ -81,12 +81,17 @@ def fit_run(rows):
         raise ValueError("controlled fits require contiguous, one-update transitions")
     if any(r.get("inspection_status") != "development" for r in rows):
         raise ValueError("controlled fitting is restricted to development runs")
-    binary = rows[0]["family"] == "tabular_binary"
     mu, v = values(rows, "mu"), values(rows, "V")
     if not np.isfinite(mu).all() or not np.isfinite(v).all() or (v <= 0).any():
         raise ValueError("this comparison requires finite means and positive measured variances")
     if any(r.get("support_failure") for r in rows):
         raise ValueError("stored support failures must be resolved before fitting")
+    return steps, mu, v
+
+
+def fit_run(rows):
+    steps, mu, v = validate_run(rows)
+    binary = rows[0]["family"] == "tabular_binary"
     observed = np.column_stack([np.r_[mu, rows[-1]["mu_next"]],
                                 np.r_[v, rows[-1].get("V_next", np.nan)]])
     base = {k: rows[0][k] for k in ("family", "run_id", "trait_id")}
