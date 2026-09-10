@@ -190,6 +190,37 @@ mask applies to SAE component fits and residuals; raw measured points are retain
 No additional continuous closure is fitted. Stop for discussion before expanding
 the closure family or planning new training.
 
+## SAE selection curvature with fixed variance closures
+
+```bash
+.venv/bin/python -m closure_study.refine_sae \
+  --table results/closure_study/diagnostics_v3/transitions.jsonl \
+  --output results/closure_study/sae_selection_v2
+```
+
+Compare affine/quadratic beta(mu) and matched affine/quadratic beta(t), all
+fitted by minimizing sum(C - V beta_hat)^2 on the common valid rows. The previous
+unweighted affine beta(mu) fit remains a reference, separating the objective
+change from adding curvature. Covariance fitting is equivalent to weighting
+squared beta residuals by V^2; this is not inverse-noise weighting, and it can
+improve C fit while worsening beta fit at small V. Both residuals are retained.
+
+Each run/feature keeps its existing affine gamma(mu) and kappa unchanged across
+all five comparisons. Only beta uses the clock for time rivals; gamma still uses
+the generated mean. There is no pooling. Generate from initial sample-panel mean
+and variance, preserve separate direct mean observations and missing final panel
+moments, and stop invalid trajectories without clipping or full-horizon scores.
+
+The report contains four figures and per-run tables; four CSVs retain parameters,
+metrics, trajectories, and residuals, including beta-fit weights and the complete
+variance-increment residual. Q flux and moment residual components are fixed
+across selection models, while selection residuals can change or cancel them.
+The variance-increment residual compares measured Q - C^2 with the model's
+increment at measured states; it is not a direct next-variance measurement.
+`--feature` chooses the display feature (default 25273). These are development
+reconstructions. Stop for discussion before sharing coefficients or revising the
+skewness law or kappa.
+
 ## Sources and implementation reuse
 
 The archive contracts were inspected in `trajectory_forecast/artifacts.py` and

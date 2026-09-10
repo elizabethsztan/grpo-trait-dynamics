@@ -15,6 +15,11 @@ from .transfer_controlled import fit_kappa
 import matplotlib.pyplot as plt
 
 
+SAE_SELECTION = [("beta_ols_affine", "mu", 1), ("flux_state_affine", "mu", 1),
+                 ("flux_state_quadratic", "mu", 2), ("flux_time_affine", "step", 1),
+                 ("flux_time_quadratic", "step", 2)]
+
+
 def fit_binary_flux(rows, predictor, degree):
     t, x, c = values(rows, "T"), values(rows, predictor), values(rows, "C")
     valid = np.isfinite(t) & np.isfinite(x) & np.isfinite(c)
@@ -61,9 +66,11 @@ def transition_steps(rows):
     return step.astype(int)
 
 
-def fit_series(rows):
+def fit_series(rows, *, sae_selection=False):
     step = transition_steps(rows)
     binary = rows[0]["family"] == "llm_binary"
+    if sae_selection and binary:
+        raise ValueError("SAE selection comparison requires continuous traits")
     observed = observations(rows, binary)
     initial = observed[0, :1 if binary else 2]
     if not np.isfinite(initial).all() or (not binary and (initial < 0).any()):
@@ -79,27 +86,40 @@ def fit_series(rows):
         g = fit_curve(values(fit_rows, "mu"), values(fit_rows, "skewness"), 1)
         kappa = fit_kappa(fit_rows)
     parameters, metrics, trajectories, residuals = [], [], [], []
-    for name, predictor, degree in BINARY if binary else [("affine_uncorrected", "mu", 1), ("affine_corrected", "mu", 1)]:
+    models = BINARY if binary else SAE_SELECTION if sae_selection else [("affine_uncorrected", "mu", 1), ("affine_corrected", "mu", 1)]
+    for name, predictor, degree in models:
         if binary:
             b, valid, informative = fit_binary_flux(rows, predictor, degree)
             g, k = None, 1.
             v = values(rows, "T") * (1 - values(rows, "T"))
             parts = {"C_residual": values(rows, "C")[valid] - v[valid] * polyval(values(rows, predictor)[valid], b)}
         else:
-            k = kappa if name == "affine_corrected" else 1.
+            k = kappa if name == "affine_corrected" or sae_selection else 1.
             informative = int(valid.sum())
             mu, v, beta, m3, q = (values(rows, key)[valid] for key in ("mu", "V", "beta", "M3", "Q"))
-            mhat, bhat = polyval(mu, g) * v ** 1.5, polyval(mu, b)
+            x = values(rows, predictor)[valid]
+            if sae_selection and name != "beta_ols_affine":
+                design = v[:, None] * polyvander(x, degree)
+                b, _, rank, _ = np.linalg.lstsq(design, values(rows, "C")[valid], rcond=None)
+                if rank != degree + 1:
+                    raise ValueError("SAE flux law is unidentified on measured states/times")
+            mhat, bhat = polyval(mu, g) * v ** 1.5, polyval(x, b)
             parts = {"C_residual": values(rows, "C")[valid] - bhat * v,
                      "Q_linear_residual": q - beta * m3, "Q_flux_residual": q - k * beta * m3,
                      "Q_moment_residual": k * beta * (m3 - mhat),
                      "Q_selection_residual": k * (beta - bhat) * mhat,
                      "Q_total_residual": q - k * bhat * mhat}
+            if sae_selection:
+                parts.update(beta_residual=beta - bhat, beta_measured=beta, beta_fitted=bhat, V=v, mu=mu,
+                             beta_fit_weight=np.ones_like(v) if name == "beta_ols_affine" else v * v,
+                             delta_V_residual=q - values(rows, "C")[valid] ** 2 - (k * bhat * mhat - (bhat * v) ** 2))
         parameters.append({**base, "model": name, "predictor": predictor, "c0": b[0],
                            "c1": b[1] if len(b) > 1 else None, "c2": b[2] if len(b) > 2 else None,
                            "gamma0": g[0] if g is not None else None, "gamma1": g[1] if g is not None else None,
                            "kappa": k if not binary else None, "fit_points": int(valid.sum()), "informative_points": informative})
-        path, status = rollout(initial, step.astype(int), b, g, time=binary and predictor == "step", kappa=k,
+        if sae_selection:
+            parameters[-1]["selection_objective"] = "beta" if name == "beta_ols_affine" else "C"
+        path, status = rollout(initial, step.astype(int), b, g, time=predictor == "step", kappa=k,
                                mean_bounds=None if binary else (0., np.inf))
         metric = {**base, "model": name, "status": status,
                   "completed_updates": int(np.isfinite(path[1:, 0]).sum()),
@@ -114,7 +134,7 @@ def fit_series(rows):
             for key, array in parts.items():
                 if key.startswith("Q_"):
                     metric[key + "_relative_l2"] = rms(array) / rms(q) if rms(q) else None
-            metric["beta_rmse"] = rms(values(rows, "beta")[valid] - polyval(mu, b))
+            metric["beta_rmse"] = rms(values(rows, "beta")[valid] - bhat)
             metric["gamma_rmse"] = rms(values(rows, "skewness")[valid] - polyval(mu, g))
         metrics.append(metric)
         for i, t in enumerate(np.r_[step, step[-1] + 1]):
