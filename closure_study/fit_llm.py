@@ -18,6 +18,16 @@ import matplotlib.pyplot as plt
 SAE_SELECTION = [("beta_ols_affine", "mu", 1), ("flux_state_affine", "mu", 1),
                  ("flux_state_quadratic", "mu", 2), ("flux_time_affine", "step", 1),
                  ("flux_time_quadratic", "step", 2)]
+SAE_SHAPE = [("gamma_ols_affine", "mu", 1), ("moment_state_affine", "mu", 1),
+             ("moment_state_quadratic", "mu", 2), ("moment_time_quadratic", "step", 2)]
+
+
+def fit_flux_curve(x, scale, target, degree):
+    design = scale[:, None] * polyvander(x, degree)
+    coef, _, rank, _ = np.linalg.lstsq(design, target, rcond=None)
+    if rank != degree + 1:
+        raise ValueError("flux law is unidentified on measured states/times")
+    return coef
 
 
 def fit_binary_flux(rows, predictor, degree):
@@ -27,10 +37,7 @@ def fit_binary_flux(rows, predictor, degree):
     if ((t < 0) | (t > 1)).any():
         raise ValueError("binary prevalence must be in [0, 1]")
     v = t * (1 - t)
-    design = v[:, None] * polyvander(x, degree)
-    coef, _, rank, _ = np.linalg.lstsq(design, c, rcond=None)
-    if rank != degree + 1:
-        raise ValueError("binary flux law is unidentified on measured states")
+    coef = fit_flux_curve(x, v, c, degree)
     return coef, valid, int(np.count_nonzero(v))
 
 
@@ -66,11 +73,13 @@ def transition_steps(rows):
     return step.astype(int)
 
 
-def fit_series(rows, *, sae_selection=False):
+def fit_series(rows, *, sae_selection=False, sae_shape=False):
     step = transition_steps(rows)
     binary = rows[0]["family"] == "llm_binary"
-    if sae_selection and binary:
-        raise ValueError("SAE selection comparison requires continuous traits")
+    if sae_selection and sae_shape:
+        raise ValueError("choose one SAE comparison at a time")
+    if (sae_selection or sae_shape) and binary:
+        raise ValueError("SAE comparison requires continuous traits")
     observed = observations(rows, binary)
     initial = observed[0, :1 if binary else 2]
     if not np.isfinite(initial).all() or (not binary and (initial < 0).any()):
@@ -85,8 +94,12 @@ def fit_series(rows, *, sae_selection=False):
         b = fit_curve(values(fit_rows, "mu"), values(fit_rows, "beta"), 1)
         g = fit_curve(values(fit_rows, "mu"), values(fit_rows, "skewness"), 1)
         kappa = fit_kappa(fit_rows)
+        if sae_shape:
+            b = fit_flux_curve(values(fit_rows, "mu"), values(fit_rows, "V"), values(fit_rows, "C"), 2)
     parameters, metrics, trajectories, residuals = [], [], [], []
-    models = BINARY if binary else SAE_SELECTION if sae_selection else [("affine_uncorrected", "mu", 1), ("affine_corrected", "mu", 1)]
+    models = BINARY if binary else [("affine_uncorrected", "mu", 1), ("affine_corrected", "mu", 1)]
+    if sae_selection or sae_shape:
+        models = SAE_SELECTION if sae_selection else SAE_SHAPE
     for name, predictor, degree in models:
         if binary:
             b, valid, informative = fit_binary_flux(rows, predictor, degree)
@@ -94,33 +107,45 @@ def fit_series(rows, *, sae_selection=False):
             v = values(rows, "T") * (1 - values(rows, "T"))
             parts = {"C_residual": values(rows, "C")[valid] - v[valid] * polyval(values(rows, predictor)[valid], b)}
         else:
-            k = kappa if name == "affine_corrected" or sae_selection else 1.
+            k = kappa if name == "affine_corrected" or sae_selection or sae_shape else 1.
             informative = int(valid.sum())
             mu, v, beta, m3, q = (values(rows, key)[valid] for key in ("mu", "V", "beta", "M3", "Q"))
             x = values(rows, predictor)[valid]
             if sae_selection and name != "beta_ols_affine":
-                design = v[:, None] * polyvander(x, degree)
-                b, _, rank, _ = np.linalg.lstsq(design, values(rows, "C")[valid], rcond=None)
-                if rank != degree + 1:
-                    raise ValueError("SAE flux law is unidentified on measured states/times")
-            mhat, bhat = polyval(mu, g) * v ** 1.5, polyval(x, b)
+                b = fit_flux_curve(x, v, values(rows, "C")[valid], degree)
+            if sae_shape and name != "gamma_ols_affine":
+                g = fit_flux_curve(x, v ** 1.5, m3, degree)
+            ghat, bhat = polyval(x if sae_shape else mu, g), polyval(mu if sae_shape else x, b)
+            mhat = ghat * v ** 1.5
             parts = {"C_residual": values(rows, "C")[valid] - bhat * v,
                      "Q_linear_residual": q - beta * m3, "Q_flux_residual": q - k * beta * m3,
                      "Q_moment_residual": k * beta * (m3 - mhat),
                      "Q_selection_residual": k * (beta - bhat) * mhat,
                      "Q_total_residual": q - k * bhat * mhat}
-            if sae_selection:
+            if sae_selection or sae_shape:
                 parts.update(beta_residual=beta - bhat, beta_measured=beta, beta_fitted=bhat, V=v, mu=mu,
                              beta_fit_weight=np.ones_like(v) if name == "beta_ols_affine" else v * v,
                              delta_V_residual=q - values(rows, "C")[valid] ** 2 - (k * bhat * mhat - (bhat * v) ** 2))
+            if sae_shape:
+                parts.update(M3=m3, M3_fitted=mhat, M3_residual=m3 - mhat, gamma_fitted=ghat,
+                             gamma_residual=values(rows, "skewness")[valid] - ghat,
+                             gamma_fit_weight=np.ones_like(v) if name == "gamma_ols_affine" else (v ** 1.5) ** 2,
+                             V_next_fitted=v + k * bhat * mhat - (bhat * v) ** 2,
+                             V_next_measured_M3=v + k * bhat * m3 - (bhat * v) ** 2,
+                             V_next_measured_beta=v + k * beta * mhat - values(rows, "C")[valid] ** 2,
+                             V_next_measured_flux=v + q - values(rows, "C")[valid] ** 2,
+                             mu_next_fitted=mu + bhat * v, mu_next_measured_flux=mu + values(rows, "C")[valid])
         parameters.append({**base, "model": name, "predictor": predictor, "c0": b[0],
                            "c1": b[1] if len(b) > 1 else None, "c2": b[2] if len(b) > 2 else None,
                            "gamma0": g[0] if g is not None else None, "gamma1": g[1] if g is not None else None,
                            "kappa": k if not binary else None, "fit_points": int(valid.sum()), "informative_points": informative})
         if sae_selection:
             parameters[-1]["selection_objective"] = "beta" if name == "beta_ols_affine" else "C"
-        path, status = rollout(initial, step.astype(int), b, g, time=predictor == "step", kappa=k,
-                               mean_bounds=None if binary else (0., np.inf))
+        if sae_shape:
+            parameters[-1].update(predictor="mu", gamma_predictor=predictor, gamma2=g[2] if len(g) > 2 else None,
+                                  selection_objective="C", shape_objective="gamma" if name == "gamma_ols_affine" else "M3")
+        path, status = rollout(initial, step.astype(int), b, g, time=predictor == "step" and not sae_shape, kappa=k,
+                               mean_bounds=None if binary else (0., np.inf), skewness_time=sae_shape and predictor == "step")
         metric = {**base, "model": name, "status": status,
                   "completed_updates": int(np.isfinite(path[1:, 0]).sum()),
                   "mu_rmse": rms(path[1:, 0] - observed[1:, 0]) if status == "complete" else None,
@@ -135,7 +160,10 @@ def fit_series(rows, *, sae_selection=False):
                 if key.startswith("Q_"):
                     metric[key + "_relative_l2"] = rms(array) / rms(q) if rms(q) else None
             metric["beta_rmse"] = rms(values(rows, "beta")[valid] - bhat)
-            metric["gamma_rmse"] = rms(values(rows, "skewness")[valid] - polyval(mu, g))
+            metric["gamma_rmse"] = rms(values(rows, "skewness")[valid] - ghat)
+        if sae_shape:
+            metric["M3_rmse"] = rms(parts["M3_residual"])
+            metric["M3_relative_l2"] = rms(parts["M3_residual"]) / rms(m3) if rms(m3) else None
         metrics.append(metric)
         for i, t in enumerate(np.r_[step, step[-1] + 1]):
             trajectories.append({**base, "model": name, "step": int(t), "mu_observed": observed[i, 0],

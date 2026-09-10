@@ -221,6 +221,39 @@ increment at measured states; it is not a direct next-variance measurement.
 reconstructions. Stop for discussion before sharing coefficients or revising the
 skewness law or kappa.
 
+## Third-moment shape closure and failure diagnostics
+
+```bash
+.venv/bin/python -m closure_study.refine_shape \
+  --table results/closure_study/diagnostics_v3/transitions.jsonl \
+  --output results/closure_study/sae_shape_v2
+```
+
+Keep each run/feature's quadratic beta(mu), fitted through covariance, and kappa
+fixed. Compare the previous unweighted affine gamma(mu) reference with affine
+and quadratic gamma(mu) and a matched quadratic gamma(t), fitting all three new
+laws through M3 = V^(3/2) gamma. This is equivalent to weighting squared gamma
+residuals by V^3. Export both raw-gamma and M3 residuals and the fitting weights;
+this objective can favor large-variance checkpoints and does not calibrate noise.
+The existing common finite, positive-variance mask applies throughout.
+
+Only gamma uses the clock in the time rival; selection always uses generated mu.
+Generate from initial moments, keep missing terminal panel moments and separate
+direct means, and stop invalid states without clipping. Coefficients are per run.
+Changing fitted M3 changes both Q_moment and Q_selection in the existing signed
+decomposition, even though the selection coefficients are fixed.
+
+The failure audit compares one-step updates at observed states using fitted
+beta/M3, measured M3, measured beta, or measured Q/C. These substitutions never
+enter generated trajectories. It records attempted updates after the last valid
+generated state and exits from marginal fitted-mu/V ranges. Marginal ranges do
+not establish joint state coverage or the cause of a failure.
+
+Four embedded figures accompany per-run tables and five CSVs: parameters, metrics,
+trajectories, residuals, and failure audit. `--feature` chooses the display feature
+(default 25273). These are development diagnostics; stop for discussion before
+sharing coefficients, adding closure terms, or planning confirmation training.
+
 ## Sources and implementation reuse
 
 The archive contracts were inspected in `trajectory_forecast/artifacts.py` and
