@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "pool_sha256": "4fb398ac0c1fc62dd159c8a80e611efd0fbca264c8a5a236f30be99137cbbe9c",
+  "checkpoint_steps": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+  "basis": "Inspected pool contains 20 transitions with old steps 0..19. Saved bank contains exactly steps 0..20. The unit-transition Price log covers the same old steps; existing experiment evaluates adjacent saved checkpoints. This supplement states that recovered mapping explicitly instead of applying a generic +1 assumption.",
+  "verification": "Loader checks the exact pool hash, full saved checkpoint-bank sequence, transition count, and agreement with old-step indices. Historical files are not edited."
+}

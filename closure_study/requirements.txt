@@ -1,0 +1,5 @@
+# CPU-only diagnostic environment; independent of the training stack.
+numpy==2.2.6
+matplotlib==3.10.9
+PyYAML==6.0.3
+pytest==9.1.1
