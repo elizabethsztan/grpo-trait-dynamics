@@ -122,6 +122,44 @@ metrics, trajectories, flux residuals, window diagnostics, and early trait bins.
 These are development transfer checks on inspected runs. No prospective validation,
 new training, extra state variables, or general direct-Q closure is introduced.
 
+## LLM closure hypotheses
+
+Test the agreed forms separately on saved output runs and SAE feature/run series:
+
+```bash
+.venv/bin/python -m closure_study.fit_llm \
+  --table results/closure_study/diagnostics_v3/transitions.jsonl \
+  --output results/closure_study/llm_fits_v3
+```
+
+Binary fits minimize squared residuals in C = T(1-T)S, using constant,
+affine/quadratic state laws and matched time rivals. All settings use this same
+flux objective, avoiding division by small binary variance. Fits use only
+checkpoints with measured old T and C; missing prevalence is never interpolated.
+Boundary observations retain their residuals but supply no coefficient information.
+Generated T is scored only against recorded direct prevalence checkpoints.
+
+SAE fits use affine beta(mu), affine standardized skewness gamma(mu), and a
+through-origin kappa from measured Q versus beta M3. The uncorrected and corrected
+models share beta/gamma; kappa changes only the Q term. Signed residuals separate
+flux, moment, and selection errors as in the controlled comparison. All component
+fits, residuals, and fit counts use the same finite rows with positive variance;
+trajectory scoring retains all measured states. Mean/variance
+reconstruction uses old-policy sample panels. Independent direct mean levels,
+available in two reruns, have a separate score; historical rounded drift never
+supplies missing levels. The final sample-panel mean and variance remain missing.
+
+All coefficients are fitted per run/feature on the whole development series.
+Generated paths receive only their initial state and fitted laws; these are
+reconstructions, not held-out predictions. Invalid probabilities, negative SAE
+means or variance, and nonfinite states stop generation without clipping. Failed
+paths have no full-horizon score. Features remain nested within runs, no parameters
+are pooled, and sampling uncertainty is not calibrated by these fits.
+
+The report embeds four comparison figures and per-run coefficient/error tables.
+Four CSVs save parameters, metrics, generated/observed trajectories, and signed
+residuals. Stop to discuss the results before selecting models or adding experiments.
+
 ## Sources and implementation reuse
 
 The archive contracts were inspected in `trajectory_forecast/artifacts.py` and
