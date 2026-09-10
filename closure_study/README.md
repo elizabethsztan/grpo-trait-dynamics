@@ -1,4 +1,4 @@
-# Price closure study: first diagnostic milestone
+# Price closure study
 
 Build a small dynamical model of unrewarded trait change by starting from the
 Price equation, identifying what remains unclosed, and using experiments to test
@@ -9,10 +9,10 @@ setting-specific constants. Evaluate the resulting models through their
 interpretation, measured closure residuals, and generated trajectories.
 Incremental forecasting gains from Price measurements are a secondary question.
 
-This implementation stops at **per-run measurements and diagnostic plots**.
-It does not fit or select closures, pool coefficients, start training, or load LLMs.
-Discuss the diagnostics before choosing the next phase. Estimate relationships
-per run first; shared setting-level coefficients require evidence of consistency.
+The diagnostic command stops at **per-run measurements and diagnostic plots**.
+A separate, small fitting command implements the subsequently agreed comparison
+on the two controlled systems. Neither command pools coefficients, starts training,
+or loads LLMs. Shared setting-level coefficients require evidence of consistency.
 
 ## Running
 
@@ -37,6 +37,51 @@ used by the prior report; no wildcard searches open untouched runs. It includes
 one externally stored SAE run. Missing sources are listed in the inventory and
 report. Malformed input can stop the run; inspect the offending archive before
 rerunning. Sources rejected during diagnostic extraction are listed with reasons.
+
+## Controlled closure comparison
+
+After discussing the diagnostics, fit the approved candidates to each controlled
+run independently:
+
+```bash
+.venv/bin/python -m closure_study.fit_controlled \
+  --table results/closure_study/diagnostics_v3/transitions.jsonl \
+  --output results/closure_study/controlled_fits_v1
+```
+
+- Binary: constant S, affine/quadratic S(T), and affine/quadratic S(t). Each
+  state/time pair has the same number of coefficients; the constant is common.
+- Continuous: constant/affine beta(mu), crossed with constant/affine gamma(mu),
+  where gamma is measured standardized skewness and M3 = gamma V^(3/2).
+
+Ordinary, unweighted least squares fits measured S, beta, or gamma over each
+whole development run. Coefficients are reported in raw state/time units.
+Generated trajectories receive only the initial state and fitted laws. The
+binary recurrence is T' = T + T(1-T)S; the continuous recurrence is
+mu' = mu + beta V and V' = V + beta gamma V^(3/2) - (beta V)^2.
+Time rivals use the clock. Invalid states stop generation without clipping;
+failed trajectories receive no full-horizon error score. Reported reconstruction
+errors exclude the supplied initial state. Missing final neural variance remains
+missing, while its observed final mean remains available.
+
+For continuous traits the signed Q error separates exactly into:
+
+```
+Q - beta_hat M3_hat
+  = (Q - beta M3)                    # linear reweighting
+  + beta (M3 - M3_hat)               # moment closure
+  + (beta - beta_hat) M3_hat         # selection closure
+```
+
+Each relative L2 residual uses the same measured-Q transitions and denominator.
+Component norms do not add, and signed errors can cancel. These descriptive
+metrics do not establish independent sampling uncertainty or held-out validity.
+
+The output contains four comparison figures (PNG/PDF), a standalone HTML report
+with embedded figures and per-run coefficient/error tables, and four CSVs:
+`coefficients`, `metrics`, `trajectories`, and signed `residuals`. This milestone
+does not fit LLM runs, pool runs, add direct-Q models or exponential tilts, or
+select a winning model. Stop for discussion before expanding the comparison.
 
 ## Sources and implementation reuse
 
