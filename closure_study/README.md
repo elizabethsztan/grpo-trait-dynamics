@@ -254,6 +254,36 @@ trajectories, residuals, and failure audit. `--feature` chooses the display feat
 (default 25273). These are development diagnostics; stop for discussion before
 sharing coefficients, adding closure terms, or planning confirmation training.
 
+## Moment consistency and event ordering
+
+```bash
+.venv/bin/python -m closure_study.diagnose_consistency \
+  --fits results/closure_study/sae_shape_v2 \
+  --output results/closure_study/sae_consistency_v3
+```
+
+Read the saved parameters, metrics, trajectories, and residuals directly. No
+coefficients, objectives, equations, or generated paths change. For nonnegative
+SAE traits, Cauchy–Schwarz gives the necessary condition
+`D = mu*M3 + mu^2*V - V^2 >= 0`. Check measured moments, fitted M3 at measured
+states, and generated moments separately. Export raw D and its ratio to
+`abs(mu*M3) + mu^2*V + V^2`; flag ratios below -1e-12 for roundoff tolerance.
+Passing this condition does not establish full physical consistency.
+
+Track the first violation and the first generated variance error above 10%, 25%,
+and 50% of observed positive panel variance. The 25% marker is descriptive, not a
+noise threshold. Preserve both source and destination steps of impossible mean
+and variance updates: M3 at t affects V at t+1, but not the mean update from t.
+Event order alone cannot establish causation. Completed paths are checked too.
+Missing panel moments and states after stopping remain missing; valid terminal
+states receive a moment check but no update beyond the requested horizon.
+
+Compare residuals before/after initial step + 5 using the original common fitting
+rows and fixed coefficients. Export C/M3/Q relative errors with window-specific
+denominators, raw beta/gamma errors, Q component errors, and original weight shares.
+Three figures and three CSVs (`points`, `events`, `windows`) summarize the results.
+Stop for discussion before changing a closure or objective.
+
 ## Sources and implementation reuse
 
 The archive contracts were inspected in `trajectory_forecast/artifacts.py` and
