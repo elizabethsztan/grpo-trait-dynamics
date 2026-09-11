@@ -36,5 +36,9 @@ Outputs under `results/<name>/`: `capability_report.json`, `features.json`,
 - **Frozen trait:** LoRA lives only on layers > L, so the layer-L SAE activation
   (hence the trait score s) is unchanged by training. Asserted every GRPO step.
 - **Unbiased ω:** rollouts sampled at temperature 1.0 / top-p 1.0 / no top-k so the
-  sampling distribution equals the logprob distribution entering ω. Price rollouts
+  sampling distribution equals the logprob distribution entering ω. Evaluation
+  scores the original batches with a prompt prefill followed by cached single-token
+  forwards. On this BF16 hybrid model, full-pass and cached probabilities differ
+  numerically, and those errors do not generally cancel in the likelihood ratio.
+  The full-pass helpers remain available for paired comparisons. Price rollouts
   are drawn independently of the gradient rollouts.

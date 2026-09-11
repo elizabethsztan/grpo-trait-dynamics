@@ -4,7 +4,7 @@ import numpy as np, torch, yaml
 from src.model import load_policy
 from src.sae import load_sae
 from src.trait import collect_feature_scores_batch
-from src.logprob import sequence_logprob_batch
+from src.logprob import generation_logprob_batch
 from src.grpo import sample_completions_batch
 from src.data import load_prompts, build_prompt
 
@@ -46,8 +46,8 @@ def _trait_matrix(policy, sae, layer, draws, all_ids, bs):
 def _logprobs(policy, draws, bs):
     out = []
     for chunk in _chunks(draws, bs):
-        out.extend(sequence_logprob_batch(policy, chunk))
-    return torch.tensor(out)
+        out.extend(generation_logprob_batch(policy, chunk))
+    return torch.tensor(out, dtype=torch.float64)
 
 
 def _dump_pool(policy, sae, layer, eval_ex, gen, ckpts, n_trans, N, bs, rng,
@@ -117,6 +117,8 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = yaml.safe_load(open(args.config))
     pe, gen = cfg["PriceEvalConfig"], cfg["GenConfig"]
+    if gen["temperature"] != 1 or gen["top_p"] != 1 or gen["top_k"] not in (0, None):
+        raise ValueError("Price evaluation requires temperature=1, top_p=1, top_k=0.")
     out = Path(cfg["OutputConfig"]["results_dir"]) / cfg["OutputConfig"]["name"]
     features = json.load(open(out / "features.json"))
     layer = features["layer_L"]
@@ -160,8 +162,8 @@ def main():
                                 int(ckpts[t + 1].name.split("_")[1]))
             policy.load_lora(ckpts[t])
             # price draws from pi_t (independent of the gradient rollouts) + trait scores.
-            # The SAME price_draws feed logp_t and logp_tp1 so any batched-forward numerical
-            # artifact is common-mode and cancels in omega = exp(logp_tp1 - logp_t).
+            # Preserve generation batches when scoring both checkpoints. BF16 full-pass
+            # errors need not cancel in omega, so use the cached generation path.
             price_draws = _draw(policy, eval_ex, gen, N_price, rng, bs)
             s_price = _trait_matrix(policy, sae, layer, price_draws, all_ids, bs)   # (N_price, F)
             logp_t = _logprobs(policy, price_draws, bs)
