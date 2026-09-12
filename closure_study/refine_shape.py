@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from numpy.polynomial.polynomial import polyval
 
-from .fit_controlled import table, values
+from .fit_controlled import selection_value, table, values
 from .fit_llm import SAE_SHAPE, fit_series
 from .io import read_jsonl, write_csv
 import matplotlib.pyplot as plt
@@ -47,7 +47,7 @@ def failure_audit(parameters, metrics, trajectories, residuals):
                 record[state + "_first_range_exit_step"] = outside[0] if outside else None
                 record[state + "_last_state_outside_range"] = not lo <= last[state + "_generated"] <= hi
             with np.errstate(over="ignore", invalid="ignore"):
-                b = polyval(mu, [p["c0"], p["c1"], p["c2"]])
+                b = selection_value([p["c0"], p["c1"], p["c2"]], mu, v, step, p.get("predictor", "mu"))
                 g = polyval(step if p["gamma_predictor"] == "step" else mu,
                             [p[k] for k in ("gamma0", "gamma1", "gamma2") if p[k] is not None])
                 record["attempted_next_mu"] = mu + b * v

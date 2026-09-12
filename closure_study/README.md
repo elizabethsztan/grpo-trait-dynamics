@@ -379,6 +379,21 @@ resolved near a boundary; their precision is explicitly unassessed.
   PNG/PDF figures. Per-run plots preserve identities; overlays separate settings,
   feature definitions and interval lengths. No coefficient estimates are pooled.
 
+## SAE mean/variance selection comparison
+
+`fit_llm.fit_series(rows, sae_state=True)` compares exactly three selection laws:
+`a + b*mu + c*mu**2`, `a + b*mu + c*V`, and `a + b*t + c*t**2`.
+Each minimizes `sum((C - V*beta_hat)**2)` on the same finite rows with positive
+variance. The quadratic `gamma(mu)` fit through `M3` and the measured-flux
+`kappa` are shared across these candidates. Nothing is fitted to trajectory error.
+
+The `predictor` column distinguishes the coefficient meanings: `c2` multiplies
+`mu**2`, `V`, or `t**2`, respectively. State laws use generated mean/variance;
+the time rival additionally uses the clock. Residual exports include both raw
+`beta` and `C` errors, fitting weights, and the separate variance-flux components.
+The existing consistency and failure diagnostics evaluate the selected law;
+one-dimensional selection roots are reported only for the mean-only law.
+
 ## Review and commit agreement
 
 Before every commit, run the relevant checks and obtain a separate independent

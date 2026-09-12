@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from numpy.polynomial.polynomial import polyval, polyvander
 
-from .fit_controlled import BINARY, fit_curve, rms, rollout, table, values
+from .fit_controlled import BINARY, fit_curve, rms, rollout, selection_value, table, values
 from .io import read_jsonl, write_csv
 from .transfer_controlled import fit_kappa
 import matplotlib.pyplot as plt
@@ -20,12 +20,18 @@ SAE_SELECTION = [("beta_ols_affine", "mu", 1), ("flux_state_affine", "mu", 1),
                  ("flux_time_quadratic", "step", 2)]
 SAE_SHAPE = [("gamma_ols_affine", "mu", 1), ("moment_state_affine", "mu", 1),
              ("moment_state_quadratic", "mu", 2), ("moment_time_quadratic", "step", 2)]
+SAE_STATE = [("flux_state_quadratic", "mu", 2), ("flux_state_variance", "mu_V", 1),
+             ("flux_time_quadratic", "step", 2)]
 
 
 def fit_flux_curve(x, scale, target, degree):
-    design = scale[:, None] * polyvander(x, degree)
+    return fit_flux_design(polyvander(x, degree), scale, target)
+
+
+def fit_flux_design(basis, scale, target):
+    design = scale[:, None] * basis
     coef, _, rank, _ = np.linalg.lstsq(design, target, rcond=None)
-    if rank != degree + 1:
+    if rank != basis.shape[1]:
         raise ValueError("flux law is unidentified on measured states/times")
     return coef
 
@@ -73,12 +79,12 @@ def transition_steps(rows):
     return step.astype(int)
 
 
-def fit_series(rows, *, sae_selection=False, sae_shape=False):
+def fit_series(rows, *, sae_selection=False, sae_shape=False, sae_state=False):
     step = transition_steps(rows)
     binary = rows[0]["family"] == "llm_binary"
-    if sae_selection and sae_shape:
+    if sum((sae_selection, sae_shape, sae_state)) > 1:
         raise ValueError("choose one SAE comparison at a time")
-    if (sae_selection or sae_shape) and binary:
+    if (sae_selection or sae_shape or sae_state) and binary:
         raise ValueError("SAE comparison requires continuous traits")
     observed = observations(rows, binary)
     initial = observed[0, :1 if binary else 2]
@@ -96,10 +102,14 @@ def fit_series(rows, *, sae_selection=False, sae_shape=False):
         kappa = fit_kappa(fit_rows)
         if sae_shape:
             b = fit_flux_curve(values(fit_rows, "mu"), values(fit_rows, "V"), values(fit_rows, "C"), 2)
+        if sae_state:
+            g = fit_flux_curve(values(fit_rows, "mu"), values(fit_rows, "V") ** 1.5, values(fit_rows, "M3"), 2)
     parameters, metrics, trajectories, residuals = [], [], [], []
     models = BINARY if binary else [("affine_uncorrected", "mu", 1), ("affine_corrected", "mu", 1)]
     if sae_selection or sae_shape:
         models = SAE_SELECTION if sae_selection else SAE_SHAPE
+    if sae_state:
+        models = SAE_STATE
     for name, predictor, degree in models:
         if binary:
             b, valid, informative = fit_binary_flux(rows, predictor, degree)
@@ -107,26 +117,29 @@ def fit_series(rows, *, sae_selection=False, sae_shape=False):
             v = values(rows, "T") * (1 - values(rows, "T"))
             parts = {"C_residual": values(rows, "C")[valid] - v[valid] * polyval(values(rows, predictor)[valid], b)}
         else:
-            k = kappa if name == "affine_corrected" or sae_selection or sae_shape else 1.
+            k = kappa if name == "affine_corrected" or sae_selection or sae_shape or sae_state else 1.
             informative = int(valid.sum())
             mu, v, beta, m3, q = (values(rows, key)[valid] for key in ("mu", "V", "beta", "M3", "Q"))
-            x = values(rows, predictor)[valid]
-            if sae_selection and name != "beta_ols_affine":
+            x = mu if predictor == "mu_V" else values(rows, predictor)[valid]
+            if predictor == "mu_V":
+                b = fit_flux_design(np.column_stack([np.ones_like(mu), mu, v]), v, values(rows, "C")[valid])
+            elif (sae_selection or sae_state) and name != "beta_ols_affine":
                 b = fit_flux_curve(x, v, values(rows, "C")[valid], degree)
             if sae_shape and name != "gamma_ols_affine":
                 g = fit_flux_curve(x, v ** 1.5, m3, degree)
-            ghat, bhat = polyval(x if sae_shape else mu, g), polyval(mu if sae_shape else x, b)
+            ghat = polyval(x if sae_shape else mu, g)
+            bhat = selection_value(b, mu, v, step[valid], "mu" if sae_shape else predictor)
             mhat = ghat * v ** 1.5
             parts = {"C_residual": values(rows, "C")[valid] - bhat * v,
                      "Q_linear_residual": q - beta * m3, "Q_flux_residual": q - k * beta * m3,
                      "Q_moment_residual": k * beta * (m3 - mhat),
                      "Q_selection_residual": k * (beta - bhat) * mhat,
                      "Q_total_residual": q - k * bhat * mhat}
-            if sae_selection or sae_shape:
+            if sae_selection or sae_shape or sae_state:
                 parts.update(beta_residual=beta - bhat, beta_measured=beta, beta_fitted=bhat, V=v, mu=mu,
                              beta_fit_weight=np.ones_like(v) if name == "beta_ols_affine" else v * v,
                              delta_V_residual=q - values(rows, "C")[valid] ** 2 - (k * bhat * mhat - (bhat * v) ** 2))
-            if sae_shape:
+            if sae_shape or sae_state:
                 parts.update(M3=m3, M3_fitted=mhat, M3_residual=m3 - mhat, gamma_fitted=ghat,
                              gamma_residual=values(rows, "skewness")[valid] - ghat,
                              gamma_fit_weight=np.ones_like(v) if name == "gamma_ols_affine" else (v ** 1.5) ** 2,
@@ -141,11 +154,13 @@ def fit_series(rows, *, sae_selection=False, sae_shape=False):
                            "kappa": k if not binary else None, "fit_points": int(valid.sum()), "informative_points": informative})
         if sae_selection:
             parameters[-1]["selection_objective"] = "beta" if name == "beta_ols_affine" else "C"
-        if sae_shape:
-            parameters[-1].update(predictor="mu", gamma_predictor=predictor, gamma2=g[2] if len(g) > 2 else None,
+        if sae_shape or sae_state:
+            parameters[-1].update(predictor="mu" if sae_shape else predictor,
+                                  gamma_predictor=predictor if sae_shape else "mu", gamma2=g[2] if len(g) > 2 else None,
                                   selection_objective="C", shape_objective="gamma" if name == "gamma_ols_affine" else "M3")
         path, status = rollout(initial, step.astype(int), b, g, time=predictor == "step" and not sae_shape, kappa=k,
-                               mean_bounds=None if binary else (0., np.inf), skewness_time=sae_shape and predictor == "step")
+                               mean_bounds=None if binary else (0., np.inf), skewness_time=sae_shape and predictor == "step",
+                               selection_variance=predictor == "mu_V")
         metric = {**base, "model": name, "status": status,
                   "completed_updates": int(np.isfinite(path[1:, 0]).sum()),
                   "mu_rmse": rms(path[1:, 0] - observed[1:, 0]) if status == "complete" else None,
@@ -161,7 +176,7 @@ def fit_series(rows, *, sae_selection=False, sae_shape=False):
                     metric[key + "_relative_l2"] = rms(array) / rms(q) if rms(q) else None
             metric["beta_rmse"] = rms(values(rows, "beta")[valid] - bhat)
             metric["gamma_rmse"] = rms(values(rows, "skewness")[valid] - ghat)
-        if sae_shape:
+        if sae_shape or sae_state:
             metric["M3_rmse"] = rms(parts["M3_residual"])
             metric["M3_relative_l2"] = rms(parts["M3_residual"]) / rms(m3) if rms(m3) else None
         metrics.append(metric)

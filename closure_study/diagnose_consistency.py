@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from numpy.polynomial.polynomial import polyval, polyroots
 
-from .fit_controlled import rms, table, values
+from .fit_controlled import rms, selection_value, table, values
 from .io import read_csv, write_csv
 from .refine_shape import LABELS, SAE_SHAPE
 import matplotlib.pyplot as plt
@@ -50,9 +50,10 @@ def first(rows, predicate):
     return next((r["step"] for r in rows if predicate(r)), None)
 
 
-def event_summary(base, status, selection, rows):
+def event_summary(base, status, selection, rows, *, predictor="mu"):
     event = {**base, "status": status,
-             "selection_roots": [float(z.real) for z in polyroots(selection) if abs(z.imag) < 1e-10 and z.real >= 0]}
+             "selection_roots": ([float(z.real) for z in polyroots(selection) if abs(z.imag) < 1e-10 and z.real >= 0]
+                                 if predictor == "mu" else None)}
     for name in ("measured", "fitted", "generated"):
         field = name + "_relative_margin"
         event[name + "_checked_points"] = sum(np.isfinite(r[field]) for r in rows)
@@ -95,6 +96,7 @@ def diagnose(parameters, metrics, trajectories, residuals):
         path, rs = sorted(paths[key(p)], key=lambda r: r["step"]), sorted(residual_groups[key(p)], key=lambda r: r["step"])
         by_step = {r["step"]: r for r in rs}
         b, g = [p[k] for k in ("c0", "c1", "c2")], [p[k] for k in ("gamma0", "gamma1", "gamma2") if np.isfinite(p[k])]
+        predictor = p.get("predictor", "mu")
         local = []
         for r in path:
             t, mu, v = r["step"], r["mu_generated"], r["V_generated"]
@@ -103,7 +105,7 @@ def diagnose(parameters, metrics, trajectories, residuals):
             for name, state in [("measured", (old["mu"], old["V"], old["M3"]) if old else (np.nan,) * 3),
                                 ("fitted", (old["mu"], old["V"], old["M3_fitted"]) if old else (np.nan,) * 3)]:
                 row[name + "_margin"], row[name + "_relative_margin"] = moment_margin(*state)
-            bhat = polyval(mu, b)
+            bhat = selection_value(b, mu, v, t, predictor)
             mhat = polyval(t if p["gamma_predictor"] == "step" else mu, g) * v ** 1.5
             row.update(beta_generated=bhat, M3_generated=mhat)
             row["generated_margin"], row["generated_relative_margin"] = moment_margin(mu, v, mhat)
@@ -112,7 +114,7 @@ def diagnose(parameters, metrics, trajectories, residuals):
             row["next_mu"] = mu + bhat * v if t < path[-1]["step"] else np.nan
             row["next_V"] = v + p["kappa"] * bhat * mhat - (bhat * v) ** 2 if t < path[-1]["step"] else np.nan
             local.append(row)
-        events.append(event_summary(base, statuses[key(p)], b, local))
+        events.append(event_summary(base, statuses[key(p)], b, local, predictor=predictor))
         points.extend(local)
         windows.extend(window_summary(base, rs, p["kappa"], path[0]["step"]))
     return points, events, windows

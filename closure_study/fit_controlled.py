@@ -37,7 +37,14 @@ def fit_curve(x, y, degree):
     return polyfit(x[valid], y[valid], degree)
 
 
-def rollout(initial, steps, selection, skewness=None, time=False, *, kappa=1.0, mean_bounds=None, skewness_time=False):
+def selection_value(selection, mu, v, step, predictor="mu"):
+    if predictor == "mu_V":
+        return selection[0] + selection[1] * mu + selection[2] * v
+    return polyval({"mu": mu, "T": mu, "step": step}[predictor], selection)
+
+
+def rollout(initial, steps, selection, skewness=None, time=False, *, kappa=1.0, mean_bounds=None, skewness_time=False,
+            selection_variance=False):
     """Only the initial state and fitted laws enter the discrete recurrence."""
     path = np.full((len(steps) + 1, len(initial)), np.nan)
     path[0] = initial
@@ -45,7 +52,7 @@ def rollout(initial, steps, selection, skewness=None, time=False, *, kappa=1.0, 
         mu = path[i, 0]
         v = path[i, 1] if skewness is not None else mu * (1 - mu)
         with np.errstate(over="ignore", invalid="ignore"):
-            b = polyval(step if time else mu, selection)
+            b = selection_value(selection, mu, v, step, "mu_V" if selection_variance else "step" if time else "mu")
             c = b * v
             next_state = [mu + c]
             if skewness is not None:
