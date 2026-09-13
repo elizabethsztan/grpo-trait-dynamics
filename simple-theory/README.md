@@ -151,3 +151,25 @@ Set `gamma` and `p` as lists in `HiddenQualityConfig`. Each cell is a full `num_
 - `plots_sweep/grid_price_estimated.{png,pdf}` — observed vs sampled $\mathrm{Cov}$ per cell (neural only)
 
 **Prediction:** when the trait is positively correlated with quality, both $T_t$ and $R_t$ rise — GRPO optimises reward, and the spuriously-correlated trait is amplified along with it.
+
+## Frozen closure confirmation
+
+[The protocol](confirmation_protocol.md) fixes five same-environment fresh-seed
+replications and a +0.5 initial-quality tilt for three paired seeds in each
+controlled system. [The config](configs/confirmation.yaml) contains the exact
+development coefficients. Confirmation launch requires separate approval.
+
+After that approval, run one registered system/arm/seed from the repository root
+using an environment with NumPy, PyTorch, Matplotlib and PyYAML:
+
+```bash
+python simple-theory/run_confirmation.py --system tabular --arm replication \
+  --seed 2026091301 --output results/controlled_confirmation/tabular/replication/2026091301
+```
+
+Use `--system neural_continuous` for the continuous model and `--arm perturbed`
+for its paired initial-condition arm, with the corresponding registered seed.
+The destination must be new. Outputs are the config/run settings and CSVs of
+exact states, transitions, frozen-model residuals, autonomous trajectories,
+scores, and attempted failures. No coefficients are refitted. Default
+`init_env()` behavior in the original experiment runner is preserved.

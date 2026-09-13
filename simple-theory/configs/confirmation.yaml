@@ -1,0 +1,19 @@
+# Frozen development coefficients; no fitting occurs in run_confirmation.py.
+environment_seed: 290402
+policy: {N: 512, K: 16, G: 8, mode: hidden_quality}
+reward: {gamma: 0.5, p: 0.3, alpha: 1.0}
+neural: {N_eval: 512, d: 32}
+arms:
+  replication: {initial_quality: 0.0, seed_count: 5}
+  perturbed: {initial_quality: 0.5, seed_count: 3}
+tabular:
+  training: {steps: 2000, batch_size: 64, eta: 0.3}
+  seeds: [2026091301, 2026091302, 2026091303, 2026091304, 2026091305]
+  selection_state: [-0.004732950770631918, 0.026611179363419956, -0.030248698205804156]
+  selection_time: [0.0008039589955753542, 5.324154303000465e-07, -5.059417704939305e-10]
+neural_continuous:
+  training: {steps: 1000, batch_size: 64, lr: 0.02}
+  seeds: [2026091401, 2026091402, 2026091403, 2026091404, 2026091405]
+  selection_state: [0.006318034798833055, -0.00801987797791238]
+  skewness: [2.3743182287192925, -1.5847566562120066]
+  kappa: 0.7781567241571242

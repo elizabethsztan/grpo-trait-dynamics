@@ -31,8 +31,8 @@ class TabularPolicy:
 
         self._seed = seed
 
-    def init_env(self,
-                 ):
+    def init_env(self, training_seed=None, initial_quality=0.0):
+        """Optionally separate training draws and tilt the initial quality logits."""
         self.t = 0
         self.logits = np.zeros((self._N, self._K))
 
@@ -44,11 +44,13 @@ class TabularPolicy:
             np.random.shuffle(s_arr)
             s_tilde = s_arr * 2 - 1
             u = self._rho * s_tilde[None, :] + np.sqrt(1 - self._rho ** 2) * np.random.randn(self._N, self._K)
+            quality = u
             self.q = sigmoid(self._alpha * u)
             self.s = np.broadcast_to(s_arr, (self._N, self._K)).astype(float)
 
         elif self._mode == "hidden_quality":
             z = np.random.randn(self._N, self._K)
+            quality = z
             self.q = sigmoid(self._alpha * z)
             xi = np.random.randn(self._N, self._K)
             m = self._gamma * z + np.sqrt(1 - self._gamma ** 2) * xi
@@ -62,6 +64,10 @@ class TabularPolicy:
 
         else:
             raise ValueError(f"unknown mode: {self._mode}")
+
+        self.logits += initial_quality * quality
+        if training_seed is not None:
+            np.random.seed(training_seed)
 
     def get_pi(self): #converts logits into probs, which is the policy
         shifted = self.logits - self.logits.max(axis=1, keepdims=True)
@@ -166,8 +172,8 @@ class NeuralPolicy:
         eps = rng.standard_normal((n, self._K, self._d - 2))
         return np.concatenate([z_std[..., None], s_std[..., None], eps], axis=2)
 
-    def init_env(self,
-                 ):
+    def init_env(self, training_seed=None, initial_quality=0.0):
+        """Preserve frozen tables; optionally change training RNGs and initial w[0]."""
         self.t = 0
         self._rng = np.random.default_rng(self._seed)
         self._tgen = torch.Generator().manual_seed(self._seed)
@@ -208,6 +214,12 @@ class NeuralPolicy:
         # trainable policy head, w_0 = 0 -> uniform pi_0 = 1/K
         self._w = torch.zeros(self._d, dtype=torch.float32, requires_grad=True)
         self._optimizer = torch.optim.Adam([self._w], lr=self._lr)
+        with torch.no_grad():
+            self._w[0] = initial_quality
+        if training_seed is not None:
+            self._rng = np.random.default_rng(training_seed)
+            self._tgen.manual_seed(training_seed)
+            self._price_gen.manual_seed(training_seed + 12345)
 
     def get_pi(self, split="eval"): #converts logits (h @ w) into probs, which is the policy
         h = self._h_eval if split == "eval" else self._h_train
