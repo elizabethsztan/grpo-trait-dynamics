@@ -1,0 +1,28 @@
+{
+  "constant": {
+    "predictor": "T",
+    "coefficients": [
+      0.039956446653042224
+    ],
+    "fit_rows": 36,
+    "informative_rows": 36
+  },
+  "state_affine": {
+    "predictor": "T",
+    "coefficients": [
+      0.117667359804087,
+      -0.16914768828119642
+    ],
+    "fit_rows": 36,
+    "informative_rows": 36
+  },
+  "time_affine": {
+    "predictor": "step",
+    "coefficients": [
+      0.07871491677261624,
+      -0.001239007390641658
+    ],
+    "fit_rows": 36,
+    "informative_rows": 36
+  }
+}

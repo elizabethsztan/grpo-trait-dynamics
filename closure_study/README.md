@@ -394,6 +394,16 @@ the time rival additionally uses the clock. Residual exports include both raw
 The existing consistency and failure diagnostics evaluate the selected law;
 one-dimensional selection roots are reported only for the mean-only law.
 
+## LLM binary confirmation preparation
+
+The [frozen protocol](llm_binary_confirmation_protocol.md) records the three
+registered laws, exact development pairs and coefficients, and the unchanged
+confirmation settings. The single calibration was performed with
+`python -m closure_study.prepare_binary_confirmation --output closure_study/configs/llm_binary_confirmation`.
+The command refuses an existing output or nonempty confirmation directory.
+Do not repeat the frozen calibration or launch confirmation from the legacy
+training CLI; the protocol lists the remaining implementation checks.
+
 ## Review and commit agreement
 
 Before every commit, run the relevant checks and obtain a separate independent

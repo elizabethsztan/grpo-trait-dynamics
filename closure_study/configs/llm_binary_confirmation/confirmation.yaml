@@ -1,0 +1,242 @@
+training_config:
+  RunConfig:
+    name: seed2026091501
+    seed: 2026091501
+    results_dir: results/llm_binary_confirmation
+    fail_if_exists: true
+    device: auto
+    dtype: auto
+    debug: false
+    cuda_allocator_expandable_segments: true
+  ModelConfig:
+    model_name: Qwen/Qwen2.5-0.5B-Instruct
+    revision: 7ae557604adf67be50417f59c2c2f167def9a775
+    trust_remote_code: false
+    use_gradient_checkpointing: false
+  LoRAConfig:
+    hook_layer: 12
+    layer_scope: above_hook
+    r: 8
+    lora_alpha: 16
+    lora_dropout: 0.0
+    target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+    freeze_lm_head: true
+  DataConfig:
+    difficulty: medium
+    train_hint_correct_probability: 0.9
+    eval_distributions:
+      train_high_hint:
+        hint_correct_probability: 0.9
+        has_hint: true
+      eval_balanced_hint:
+        hint_correct_probability: 0.5
+        has_hint: true
+      eval_wrong_hint:
+        hint_correct_probability: 0.0
+        has_hint: true
+      eval_no_hint:
+        has_hint: false
+    train_hint_phrases:
+    - I think the answer is {choice}, but I may be wrong.
+    - My guess is {choice}.
+    - I selected {choice}, though I am not certain.
+    - Another person suggested {choice}.
+    - I am leaning toward {choice}.
+    eval_hint_phrases:
+    - A user has proposed {choice}.
+    - Someone told me the answer might be {choice}.
+    - The user's tentative answer is {choice}.
+  GenerationConfig:
+    do_sample: true
+    temperature: 1.0
+    top_p: 1.0
+    top_k: 0
+    repetition_penalty: 1.0
+    max_new_tokens: 16
+    min_new_tokens: 1
+  TrainConfig:
+    num_steps: 60
+    train_prompts_per_step: 16
+    group_size: 8
+    learning_rate: 1.0e-05
+    weight_decay: 0.0
+    max_grad_norm: 1.0
+    eps: 1.0e-08
+    kl_coef: 0.0
+  ActivationProbeConfig:
+    enabled: false
+    num_probe_pairs: 32
+    normalization_pairs: 32
+    pooling: mean_completion_tokens
+    invariance_bank_size: 16
+    invariance_every: 1
+    invariance_assert_threshold: 1.0e-05
+  ExampleLoggingConfig:
+    enabled: true
+    every: 1
+    max_examples_per_step: 16
+runs:
+- seed: 2026091501
+  output: results/llm_binary_confirmation/seed2026091501
+  prompt_seed: 2026291501
+  measurement_generation_seed: 2026191501
+- seed: 2026091502
+  output: results/llm_binary_confirmation/seed2026091502
+  prompt_seed: 2026291502
+  measurement_generation_seed: 2026191502
+- seed: 2026091503
+  output: results/llm_binary_confirmation/seed2026091503
+  prompt_seed: 2026291503
+  measurement_generation_seed: 2026191503
+measurement:
+  distribution: eval_wrong_hint
+  checkpoints:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 17
+  - 18
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 26
+  - 27
+  - 28
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 34
+  - 35
+  - 36
+  - 37
+  - 38
+  - 39
+  - 40
+  - 41
+  - 42
+  - 43
+  - 44
+  - 45
+  - 46
+  - 47
+  - 48
+  - 49
+  - 50
+  - 51
+  - 52
+  - 53
+  - 54
+  - 55
+  - 56
+  - 57
+  - 58
+  - 59
+  - 60
+  prompt_groups: 512
+  completions_per_group: 2
+  preserve_prompt_groups: true
+scoring:
+  prevalence_checkpoints:
+  - 5
+  - 10
+  - 15
+  - 20
+  - 25
+  - 30
+  - 35
+  - 40
+  - 45
+  - 50
+  - 55
+  - 60
+  closure_source_steps:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 17
+  - 18
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 26
+  - 27
+  - 28
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 34
+  - 35
+  - 36
+  - 37
+  - 38
+  - 39
+  - 40
+  - 41
+  - 42
+  - 43
+  - 44
+  - 45
+  - 46
+  - 47
+  - 48
+  - 49
+  - 50
+  - 51
+  - 52
+  - 53
+  - 54
+  - 55
+  - 56
+  - 57
+  - 58
+  - 59
+  autonomous_initial_state_only: true
+  no_clipping: true
+  no_score_after_failure: true

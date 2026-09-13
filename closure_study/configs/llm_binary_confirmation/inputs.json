@@ -1,0 +1,73 @@
+{
+  "development_inputs": [
+    {
+      "seed": 290416,
+      "run_id": "historical-above_hook_lr1e5-seed290416",
+      "metrics_path": "results/trajectory_forecast/hierarchical_20260724/prospective_v1/runs/hierarchical_above_hook_lr1e5_seed290416/metrics.jsonl",
+      "metrics_sha256": "b17cb5bb1677d493359b9877b95d59252ce7a6701f3bc4ec6c2329d1afd345e9",
+      "config_path": "results/trajectory_forecast/hierarchical_20260724/prospective_v1/runs/hierarchical_above_hook_lr1e5_seed290416/config.yaml",
+      "config_sha256": "1e4918268d712a9611a33a3fbbacc0b1a1200a9df2f9463c25985ff5d6866978",
+      "fit_rows": 12,
+      "excluded_rows_missing_direct_T": 48
+    },
+    {
+      "seed": 290417,
+      "run_id": "historical-above_hook_lr1e5-seed290417",
+      "metrics_path": "results/trajectory_forecast/hierarchical_20260724/prospective_v1/runs/hierarchical_above_hook_lr1e5_seed290417/metrics.jsonl",
+      "metrics_sha256": "2c79eebf5a9e5c8ad13b828288b4de2f4980330479549451c7af1067f726e8f8",
+      "config_path": "results/trajectory_forecast/hierarchical_20260724/prospective_v1/runs/hierarchical_above_hook_lr1e5_seed290417/config.yaml",
+      "config_sha256": "bcf9f85991337a20ef1c929b813ee3c403622ba1e3d7094474937fa6d9e3ed83",
+      "fit_rows": 12,
+      "excluded_rows_missing_direct_T": 48
+    },
+    {
+      "seed": 290418,
+      "run_id": "historical-above_hook_lr1e5-seed290418",
+      "metrics_path": "results/trajectory_forecast/hierarchical_20260724/prospective_v1/runs/hierarchical_above_hook_lr1e5_seed290418/metrics.jsonl",
+      "metrics_sha256": "5c304d5a819d4181047bbc1cdb50283b2d0316760bcfdcceadc38a821a0f439b",
+      "config_path": "results/trajectory_forecast/hierarchical_20260724/prospective_v1/runs/hierarchical_above_hook_lr1e5_seed290418/config.yaml",
+      "config_sha256": "17b8818e0424cd08afa74fd02340260e762b77badfb0f2ded9f5cf727fd4a6eb",
+      "fit_rows": 12,
+      "excluded_rows_missing_direct_T": 48
+    }
+  ],
+  "code": [
+    {
+      "path": "closure_study/prepare_binary_confirmation.py",
+      "sha256": "e530a13c22cf705219ebdca26478315dc422f2711872b2ed7b74826ff33d9b0b"
+    },
+    {
+      "path": "closure_study/adapters.py",
+      "sha256": "9fd3897c746efca7da4be8e69cbbb5111f4b0024e366c0ed4ac16f6b9c4ccc33"
+    },
+    {
+      "path": "closure_study/fit_llm.py",
+      "sha256": "17460245a62619ffef4d05cfa847336637713e730df72d99bf680ec3066ecac5"
+    },
+    {
+      "path": "closure_study/fit_controlled.py",
+      "sha256": "f57b7abfbccca96767eeefa29684cc3dc42aef8e7ce818c6f2ad1af29070c6b1"
+    }
+  ],
+  "source_base_commit": "dcaae02de59ec7f33237dc95bce67f2827fe68b8",
+  "numpy_version": "2.2.6",
+  "distribution": "eval_wrong_hint",
+  "objective": "sum((C_t - T_t*(1-T_t)*S_hat(T_t or t))**2)",
+  "solver": "numpy.linalg.lstsq: design=T*(1-T)*polyvander(predictor, degree), rcond=None",
+  "alignment": "C for t -> t+1 comes from metrics record t+1; T is direct observed_eval at record t",
+  "pooling": "equal weight per retained covariance row; 12 rows per run; no interpolation, normalization, or trajectory fitting",
+  "confirmation_directories": [
+    {
+      "path": "results/llm_binary_confirmation/seed2026091501",
+      "status": "absent"
+    },
+    {
+      "path": "results/llm_binary_confirmation/seed2026091502",
+      "status": "absent"
+    },
+    {
+      "path": "results/llm_binary_confirmation/seed2026091503",
+      "status": "absent"
+    }
+  ]
+}
