@@ -1,0 +1,6 @@
+{
+  "score_batch_size": 32,
+  "bootstrap_draws": 2000,
+  "bootstrap_seed_offset": 300000,
+  "percentiles": [2.5, 97.5]
+}

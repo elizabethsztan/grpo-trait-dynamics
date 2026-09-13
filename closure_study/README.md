@@ -402,7 +402,9 @@ confirmation settings. The single calibration was performed with
 `python -m closure_study.prepare_binary_confirmation --output closure_study/configs/llm_binary_confirmation`.
 The command refuses an existing output or nonempty confirmation directory.
 Do not repeat the frozen calibration or launch confirmation from the legacy
-training CLI; the protocol lists the remaining implementation checks.
+training CLI. The [execution specification](llm_binary_confirmation_execution.md)
+defines the dedicated runner, frozen analysis and prompt-group bootstrap. Its
+implementation must be independently reviewed and committed before launch.
 
 ## Review and commit agreement
 
