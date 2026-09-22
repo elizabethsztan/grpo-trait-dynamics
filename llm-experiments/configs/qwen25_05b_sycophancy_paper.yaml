@@ -16,6 +16,7 @@ LoRAConfig:
 DataConfig:
   difficulty: medium
 GenerationConfig:
+  prompt_format: chat
   do_sample: true
   temperature: 1.0
   top_p: 1.0

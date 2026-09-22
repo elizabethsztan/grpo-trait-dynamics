@@ -92,6 +92,22 @@ LoRA with the existing simplified objective, records every training response,
 and saves initial and per-update adapters. No measurement occurs during training.
 The no-hint condition uses the original no-hint prompt and correctness reward.
 
+The paper configuration sets `GenerationConfig.prompt_format: chat`. Training
+and evaluation pass the unchanged task text as one user message through the
+pinned tokenizer's chat template, with its assistant generation prefix. There is
+no separately supplied system message; the native Qwen template inserts its
+default helpful-assistant system message. Scoring reuses the exact generated prompt
+token IDs; it does not render or tokenize the prompt again. Runtime metadata saves
+the resolved template. Older configurations without this setting use plain text.
+
+Within a training seed, all six conditions receive identical arithmetic problems,
+options, and ordering. Separate deterministic random streams generate problems,
+hint-correctness draws, incorrect choices, and wording. Each hinted condition
+compares the same uniform draw against its reliability, so increasing reliability
+only switches some hints from wrong to correct. The no-hint control receives the
+same problems. Different seeds generate different inputs; realized hint accuracy
+fluctuates around the requested probability. Model responses are sampled normally.
+
 `--cohort paper` prepares thirty entries (five seeds each at 10%, 25%, 50%, 75%,
 90%, and no-hint training). Training those entries is refused while
 `paper_execution_enabled` is false. Enable it only after the agreed pilot review
@@ -114,7 +130,8 @@ independent replication. Increasing the prompt count retains the original sample
 prefix. Separate random streams distinguish direct evaluations from Price pools,
 and measurement restores the caller's Python, NumPy, and Torch random states.
 Source and successor likelihoods use the same prompt-group batch boundaries.
-Measurement refuses a changed weight dtype or generation configuration.
+Measurement refuses a changed weight dtype, generation configuration, prompt
+format, or chat template.
 
 Each attempt has a `status.json` recording completion or failure, timing, source
 hashes, commit, and package versions. Existing attempt directories are never

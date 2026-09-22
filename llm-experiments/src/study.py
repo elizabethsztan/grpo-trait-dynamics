@@ -133,6 +133,34 @@ def make_bank(config, seed):
     return rows
 
 
+def training_examples(config, step):
+    """Match problems and hint draws across conditions within each training seed."""
+    seed, data = config["RunConfig"]["seed"], config["DataConfig"]
+    examples = generate_examples(
+        config["TrainConfig"]["train_prompts_per_step"],
+        stream_seed(seed, "train_problems", step), f"train_step{step:04d}",
+        difficulty=data["difficulty"], has_hint=False,
+    )
+    correctness = random.Random(stream_seed(seed, "train_hint_correctness", step))
+    wrong_choices = random.Random(stream_seed(seed, "train_wrong_hint", step))
+    phrases = random.Random(stream_seed(seed, "train_hint_phrase", step))
+    probability = float(data["train_hint_correct_probability"])
+    if not 0 <= probability <= 1:
+        raise ValueError("train_hint_correct_probability must be in [0, 1]")
+    matched = []
+    for example in examples:
+        draw = correctness.random()
+        wrong = wrong_choices.choice([letter for letter in LETTERS if letter != example.gold_choice])
+        phrase = phrases.choice(data["train_hint_phrases"])
+        hint = (example.gold_choice if draw < probability else wrong) if data["train_has_hint"] else None
+        matched.append(replace(
+            example, user_hint=hint, hint_is_correct=None if hint is None else hint == example.gold_choice,
+            hint_phrase=None if hint is None else phrase,
+            prompt_text=render_prompt(example.problem_text, example.options, hint, phrase),
+        ))
+    return matched
+
+
 def validate_config(config):
     model = config["ModelConfig"]
     if not re.fullmatch(r"[0-9a-f]{40}", model.get("revision", "")):

@@ -52,6 +52,10 @@ def resolve_generation_config(generation_config: dict, tokenizer):
         "max_new_tokens": 16,
         "min_new_tokens": 1,
     }
+    generation_config = dict(generation_config)
+    prompt_format = generation_config.pop("prompt_format", "plain")
+    if prompt_format not in ("plain", "chat"):
+        raise ValueError("prompt_format must be plain or chat")
     unknown = set(generation_config) - set(supported)
     if unknown:
         raise ValueError(f"unsupported generation settings: {sorted(unknown)}")
@@ -77,7 +81,13 @@ def generate_completions(model, tokenizer, prompt_text: str, generation_config: 
     configure_tokenizer_and_model(tokenizer, model)
     resolved = resolve_generation_config(generation_config, tokenizer)
     resolved.num_return_sequences = num_return_sequences
-    prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=True)
+    if generation_config.get("prompt_format", "plain") == "chat":
+        prompt_ids = tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt_text}],
+            tokenize=True, add_generation_prompt=True, return_dict=False,
+        )
+    else:
+        prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=True)
     input_ids = torch.tensor([prompt_ids], dtype=torch.long, device=device)
     attention_mask = torch.ones_like(input_ids)
 

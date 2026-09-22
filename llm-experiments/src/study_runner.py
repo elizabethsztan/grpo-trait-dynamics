@@ -11,6 +11,7 @@ import time
 import numpy as np
 
 from .generation import configure_tokenizer_and_model, resolve_generation_config
+from .study import training_examples
 from .grpo import attach_logprobs, compute_price_block, sample_rollouts, train_grpo_step
 from .lora_freeze import apply_lora
 from .metrics import summarize_trait_metrics
@@ -72,6 +73,8 @@ def runtime_metadata(model, tokenizer, device, config):
         "trainable_parameters": sum(p.numel() for p in model.parameters() if p.requires_grad),
         "model_revision": config["ModelConfig"]["revision"],
         "generation_config": resolve_generation_config(config["GenerationConfig"], tokenizer).to_dict(),
+        "prompt_format": config["GenerationConfig"].get("prompt_format", "plain"),
+        "chat_template": tokenizer.get_chat_template() if config["GenerationConfig"].get("prompt_format") == "chat" else None,
         "sequence_likelihood_dtype": "float32", "ratio_and_covariance_dtype": "float64",
     }
 
@@ -154,7 +157,6 @@ def sample_record(sample, index, completions, *, run_id, distribution, kind, sou
 
 def train_run(study_dir, run_id):
     import torch
-    from train_grpo_price import _generate_train_examples
 
     study_dir = Path(study_dir)
     manifest, run = load_study(study_dir, run_id)
@@ -177,7 +179,7 @@ def train_run(study_dir, run_id):
             with (directory / "training_metrics.jsonl").open("x") as metrics:
                 for step in range(train["num_steps"]):
                     summary, samples = train_grpo_step(
-                        model, tokenizer, optimizer, _generate_train_examples(config, step),
+                        model, tokenizer, optimizer, training_examples(config, step),
                         config["GenerationConfig"], group_size=train["group_size"], eps=float(train["eps"]),
                         max_grad_norm=float(train["max_grad_norm"]), device=device,
                     )
@@ -261,7 +263,7 @@ def measure_run(study_dir, run_id, measurement_id, prompts=None):
             model, tokenizer, device = load_model(config)
             measurement_runtime = runtime_metadata(model, tokenizer, device, config)
             write_json(output / "runtime.json", measurement_runtime)
-            for key in ("weight_dtype", "model_revision", "generation_config"):
+            for key in ("weight_dtype", "model_revision", "generation_config", "prompt_format", "chat_template"):
                 if measurement_runtime[key] != training_runtime[key]:
                     raise ValueError(f"measurement {key} differs from training")
             load_checkpoint(model, directory, checkpoints[0])

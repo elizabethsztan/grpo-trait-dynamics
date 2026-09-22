@@ -1,4 +1,5 @@
 from pathlib import Path
+from copy import deepcopy
 import random
 
 import numpy as np
@@ -10,7 +11,7 @@ from src.config import load_config
 from src.lora_freeze import apply_lora, extract_layer_index
 from src.study import (
     DISTRIBUTIONS, PRICE_DISTRIBUTIONS, bank_examples, digest, make_bank,
-    prepare_study, read_json, read_rows, verify_artifact,
+    prepare_study, read_json, read_rows, verify_artifact, training_examples,
 )
 from src import study_runner as runner
 from train_grpo_price import _generate_train_examples
@@ -35,6 +36,15 @@ class TinyTokenizer:
 
     def encode(self, text, add_special_tokens=True):
         return [1, 3]
+
+    def get_chat_template(self):
+        return "synthetic test chat template"
+
+    def apply_chat_template(self, messages, *, tokenize, add_generation_prompt, return_dict):
+        assert tokenize and add_generation_prompt and not return_dict
+        assert len(messages) == 1 and messages[0]["role"] == "user"
+        assert "<answer></answer>" in messages[0]["content"]
+        return [1, 4, 3]
 
     def decode(self, ids, skip_special_tokens=True):
         if ids and 3 <= ids[0] <= 6:
@@ -105,6 +115,41 @@ def test_no_hint_training_uses_existing_generator_without_hints(config):
     assert all("No user guess is provided." in e.prompt_text for e in examples)
 
 
+def test_training_inputs_match_across_sweep_with_nested_hints(config):
+    config["TrainConfig"]["train_prompts_per_step"] = 128
+    streams = []
+    for p in (0, .1, .25, .5, .75, .9, 1, None):
+        variant = deepcopy(config)
+        variant["DataConfig"].update(train_has_hint=p is not None, train_hint_correct_probability=p or 0)
+        examples = training_examples(variant, 7)
+        assert examples == training_examples(variant, 7)
+        streams.append(examples)
+    for group in zip(*streams):
+        first = group[0]
+        for example in group:
+            assert (example.problem_id, example.problem_text, example.options, example.gold_choice, example.gold_value) == (
+                first.problem_id, first.problem_text, first.options, first.gold_choice, first.gold_value,
+            )
+        hinted = group[:-1]
+        assert len({e.hint_phrase for e in hinted}) == 1
+        assert len({e.user_hint for e in hinted if not e.hint_is_correct}) == 1
+        correct = [e.hint_is_correct for e in hinted]
+        assert correct == sorted(correct)
+        assert correct[0] is False and correct[-1] is True
+        assert group[-1].user_hint is None and group[-1].hint_is_correct is None
+        assert "No user guess is provided." in group[-1].prompt_text
+    assert streams[0] != training_examples(config, 8)
+    changed = deepcopy(config)
+    changed["RunConfig"]["seed"] += 1
+    assert [e.problem_text for e in streams[0]] != [e.problem_text for e in training_examples(changed, 7)]
+    changed = deepcopy(config)
+    changed["DataConfig"]["train_hint_phrases"] = ["I choose {choice}."]
+    original, reworded = training_examples(config, 7), training_examples(changed, 7)
+    assert [(e.problem_text, e.options, e.user_hint) for e in original] == [
+        (e.problem_text, e.options, e.user_hint) for e in reworded
+    ]
+
+
 @pytest.mark.parametrize("scope,expected", [("all", {0, 1}), ("above_hook", {1})])
 def test_lora_scope_selects_only_requested_adapter_layers(config, scope, expected):
     config["LoRAConfig"].update(layer_scope=scope, hook_layer=0)
@@ -142,6 +187,17 @@ def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_pat
     manifest = prepare_study(config, root, "pilot")
     run_id = manifest["runs"][0]["run_id"]
     run_dir = runner.train_run(root, run_id)
+    runtime = read_json(run_dir / "runtime.json")
+    assert runtime["prompt_format"] == "chat"
+    assert runtime["chat_template"] == TinyTokenizer().get_chat_template()
+    for step in (0, 1):
+        records = list(read_rows(run_dir / f"train_{step:04d}.jsonl.gz"))
+        expected_config = deepcopy(config)
+        expected_config["RunConfig"]["seed"] = manifest["runs"][0]["seed"]
+        expected_config["DataConfig"]["train_hint_correct_probability"] = .25
+        expected = training_examples(expected_config, step)
+        assert [r["example"] for r in records[::config["TrainConfig"]["group_size"]]] == [e.to_json_dict() for e in expected]
+        assert all(r["prompt_ids"] == [1, 4, 3] for r in records)
     assert read_json(run_dir / "status.json")["state"] == "complete"
     checkpoints = read_json(run_dir / "checkpoints.json")["checkpoints"]
     assert [c["step"] for c in checkpoints] == [0, 1, 2]
@@ -176,6 +232,7 @@ def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_pat
             assert len(source) == len(paired) == 4
             assert len({r["group_id"] for r in paired}) == 2
             for old, new in zip(source, paired):
+                assert old["prompt_ids"] == new["prompt_ids"] == [1, 4, 3]
                 assert old["completion_ids"] == new["completion_ids"]
                 assert old["pre_logprob"] == new["pre_logprob"]
                 assert old["traits"] == new["traits"]

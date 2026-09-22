@@ -125,11 +125,24 @@ class TinyTokenizer:
         return " ".join(str(i) for i in ids if i not in (self.pad_token_id, self.eos_token_id))
 
 
+@pytest.mark.parametrize("prompt_format", ["plain", "chat"])
 @pytest.mark.parametrize("pad", [0, 2])
-def test_real_transformers_generation_scores_match_teacher_forced_likelihoods(pad):
+def test_real_transformers_generation_scores_match_teacher_forced_likelihoods(pad, prompt_format):
     torch.manual_seed(73)
     tokenizer = TinyTokenizer()
     tokenizer.pad_token_id = pad
+    if prompt_format == "chat":
+        from tokenizers import Tokenizer
+        from tokenizers.models import WordLevel
+        from tokenizers.pre_tokenizers import WhitespaceSplit
+        from transformers import PreTrainedTokenizerFast
+
+        backend = Tokenizer(WordLevel({"<pad>": 0, "<user>": 1, "<eos>": 2,
+                                       "<assistant>": 3, "test": 4, "prompt": 5, "<unk>": 6}, unk_token="<unk>"))
+        backend.pre_tokenizer = WhitespaceSplit()
+        tokenizer = PreTrainedTokenizerFast(tokenizer_object=backend, eos_token="<eos>", pad_token="<pad>", unk_token="<unk>")
+        tokenizer.pad_token_id = pad
+        tokenizer.chat_template = "{% for message in messages %}<{{ message['role'] }}> {{ message['content'] }} <eos> {% endfor %}{% if add_generation_prompt %}<assistant>{% endif %}"
     model = GPT2LMHeadModel(GPT2Config(
         vocab_size=7, n_positions=16, n_embd=16, n_layer=1, n_head=2,
         resid_pdrop=0, embd_pdrop=0, attn_pdrop=0, bos_token_id=4,
@@ -152,7 +165,8 @@ def test_real_transformers_generation_scores_match_teacher_forced_likelihoods(pa
         return result.sequences
 
     model.generate = capture
-    responses = generate_completions(model, tokenizer, "unchanged raw prompt", {"max_new_tokens": 5}, 16, "cpu")
+    responses = generate_completions(model, tokenizer, "test prompt", {"max_new_tokens": 5, "prompt_format": prompt_format}, 16, "cpu")
+    assert all(r.prompt_ids == ([1, 4, 5, 2, 3] if prompt_format == "chat" else [4, 5]) for r in responses)
     assert model.generation_config is original_config
     assert original_config.suppress_tokens == [3]
     result = captures[0]
@@ -224,6 +238,7 @@ def test_lora_generation_restores_wrapper_and_base_configs(fail):
     {"top_k": 20}, {"repetition_penalty": 1.1}, {"min_new_tokens": -1},
     {"max_new_tokens": 0}, {"min_new_tokens": 3, "max_new_tokens": 2},
     {"max_new_tokens": 1.5}, {"forced_bos_token_id": 1},
+    {"prompt_format": "unknown"},
 ])
 def test_unsupported_sampling_settings_are_rejected(settings):
     with pytest.raises(ValueError):
