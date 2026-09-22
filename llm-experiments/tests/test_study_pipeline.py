@@ -232,6 +232,8 @@ def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_pat
             assert len(source) == len(paired) == 4
             assert len({r["group_id"] for r in paired}) == 2
             for old, new in zip(source, paired):
+                assert old["likelihood_method"] == new["likelihood_method"] == "generation_capture_then_cached_replay_v1"
+                assert old["generation_batch_size"] == new["generation_batch_size"] == 2
                 assert old["prompt_ids"] == new["prompt_ids"] == [1, 4, 3]
                 assert old["completion_ids"] == new["completion_ids"]
                 assert old["pre_logprob"] == new["pre_logprob"]
@@ -263,6 +265,8 @@ def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_pat
         assert len(expanded) == 8
     assert read_json(larger / "config.json")["PriceConfig"]["prompts_per_distribution"] == 4
     assert read_json(run_dir / "config.json")["PriceConfig"]["prompts_per_distribution"] == 2
+    from src.bootstrap import bootstrap_measurement
+    assert set(bootstrap_measurement(larger, tmp_path / "bootstrap", draws=100)) == set(PRICE_DISTRIBUTIONS)
 
 
 def test_failed_training_is_retained_and_not_reused(config, tmp_path, monkeypatch):

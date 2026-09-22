@@ -162,6 +162,9 @@ def training_examples(config, step):
 
 
 def validate_config(config):
+    microbatch = config["TrainConfig"].get("microbatch_prompts")
+    if microbatch is not None and (type(microbatch) is not int or microbatch < 1):
+        raise ValueError("microbatch_prompts must be a positive integer or None")
     model = config["ModelConfig"]
     if not re.fullmatch(r"[0-9a-f]{40}", model.get("revision", "")):
         raise ValueError("paper study requires an exact model/tokenizer revision")

@@ -12,6 +12,8 @@ class GeneratedCompletion:
     eos_token_id: int | None = None
     min_new_tokens: int = 0
     stop_reason: str | None = None
+    sampling_logprob: float | None = None
+    generation_batch_size: int | None = None
 
     @property
     def completion_token_length(self) -> int:
@@ -75,12 +77,14 @@ def resolve_generation_config(generation_config: dict, tokenizer):
     )
 
 
-def generate_completions(model, tokenizer, prompt_text: str, generation_config: dict, num_return_sequences: int, device):
+def generate_completions(model, tokenizer, prompt_text: str, generation_config: dict, num_return_sequences: int, device, capture_logprobs=False):
     import torch
 
     configure_tokenizer_and_model(tokenizer, model)
     resolved = resolve_generation_config(generation_config, tokenizer)
     resolved.num_return_sequences = num_return_sequences
+    resolved.return_dict_in_generate = capture_logprobs
+    resolved.output_scores = capture_logprobs
     if generation_config.get("prompt_format", "plain") == "chat":
         prompt_ids = tokenizer.apply_chat_template(
             [{"role": "user", "content": prompt_text}],
@@ -109,7 +113,8 @@ def generate_completions(model, tokenizer, prompt_text: str, generation_config: 
 
     completions = []
     prompt_len = len(prompt_ids)
-    for sequence in outputs:
+    sequences = outputs.sequences if capture_logprobs else outputs
+    for row, sequence in enumerate(sequences):
         completion_ids = truncate_after_eos(
             sequence[prompt_len:].detach().cpu().tolist(),
             eos_token_id=tokenizer.eos_token_id,
@@ -123,6 +128,11 @@ def generate_completions(model, tokenizer, prompt_text: str, generation_config: 
                 eos_token_id=resolved.eos_token_id,
                 min_new_tokens=resolved.min_new_tokens,
                 stop_reason="eos" if completion_ids and completion_ids[-1] == resolved.eos_token_id else "max_new_tokens",
+                sampling_logprob=float(torch.stack([
+                    outputs.scores[t][row].float().log_softmax(-1)[token]
+                    for t, token in enumerate(completion_ids)
+                ]).sum().item()) if capture_logprobs else None,
+                generation_batch_size=num_return_sequences,
             )
         )
     return completions

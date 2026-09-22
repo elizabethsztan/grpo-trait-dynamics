@@ -2,7 +2,10 @@ from __future__ import annotations
 
 
 def sequence_logprobs(model, samples, pad_token_id: int, device=None, with_grad: bool = False):
-    """Score generated sequences under their actual sampling distribution.
+    """Whole-sequence scoring for the training objective and legacy callers.
+
+    Low-precision full-sequence computation can differ from incremental
+    generation. Paper measurements use cached_sequence_logprobs instead.
 
     GeneratedCompletion stores the EOS suppression settings; RolloutSample wraps
     it in ``generated``. Samples without that metadata retain raw-policy scoring
@@ -46,3 +49,46 @@ def sequence_logprobs(model, samples, pad_token_id: int, device=None, with_grad:
             else:
                 sequence_scores.append(torch.zeros((), device=device, dtype=torch.float32))
         return torch.stack(sequence_scores)
+
+
+def cached_sequence_logprobs(model, samples, pad_token_id, device=None):
+    """Replay one complete generation group, retaining finished rows as padding."""
+    import inspect
+    import torch
+
+    device = device or next(model.parameters()).device
+    if not samples:
+        return torch.empty(0, dtype=torch.float32, device=device)
+    generated = [getattr(sample, "generated", sample) for sample in samples]
+    first = generated[0]
+    if model.training:
+        raise ValueError("cached measurement requires model.eval()")
+    if any(s.prompt_ids != first.prompt_ids or s.generation_batch_size != len(samples)
+           or s.eos_token_id != first.eos_token_id or s.min_new_tokens != first.min_new_tokens
+           or not s.completion_ids for s in generated):
+        raise ValueError("replay requires one intact generation group with matching sampling settings")
+    base = model.get_base_model() if hasattr(model, "get_base_model") else model
+    # Match Transformers' last-token logits optimization when supported.
+    forward_kwargs = {"logits_to_keep": 1} if "logits_to_keep" in inspect.signature(base.forward).parameters else {}
+    lengths = [len(s.completion_ids) for s in generated]
+    tokens = torch.full((len(samples), max(lengths)), pad_token_id, dtype=torch.long, device=device)
+    for row, sample in enumerate(generated):
+        tokens[row, :lengths[row]] = torch.tensor(sample.completion_ids, device=device)
+    inputs = torch.tensor([first.prompt_ids] * len(samples), device=device)
+    mask = torch.ones_like(inputs)
+    cache, scores = None, []
+    with torch.no_grad():
+        for t in range(max(lengths)):
+            output = model(input_ids=inputs, attention_mask=mask, past_key_values=cache,
+                           use_cache=True, **forward_kwargs)
+            cache = output.past_key_values
+            if cache is None:
+                raise ValueError("model did not return the cache needed for generation replay")
+            logits = output.logits[:, -1].float().clone()
+            if first.eos_token_id is not None and t < first.min_new_tokens:
+                logits[:, first.eos_token_id] = -torch.inf
+            scores.append(logits.log_softmax(-1).gather(1, tokens[:, t:t+1]).squeeze(1))
+            inputs = tokens[:, t:t+1]
+            mask = torch.cat((mask, torch.ones_like(inputs)), dim=1)
+        token_scores = torch.stack(scores, dim=1)
+        return torch.stack([token_scores[row, :length].sum() for row, length in enumerate(lengths)])

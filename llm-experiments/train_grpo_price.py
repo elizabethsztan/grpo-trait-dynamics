@@ -289,6 +289,7 @@ def run_training(config: dict) -> Path:
             max_grad_norm=float(train_cfg.get("max_grad_norm", 1.0)),
             device=device,
             activation_probe=activation_probe,
+            microbatch_prompts=train_cfg.get("microbatch_prompts"),
         )
         _write_rollout_examples(run_dir, update_idx, train_samples, config["ExampleLoggingConfig"])
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import replace
 import gzip
 from pathlib import Path
 import random
@@ -12,7 +13,8 @@ import numpy as np
 
 from .generation import configure_tokenizer_and_model, resolve_generation_config
 from .study import training_examples
-from .grpo import attach_logprobs, compute_price_block, sample_rollouts, train_grpo_step
+from .grpo import compute_price_block, sample_rollouts, train_grpo_step
+from .logprobs import cached_sequence_logprobs
 from .lora_freeze import apply_lora
 from .metrics import summarize_trait_metrics
 from .price import CumulativePriceTracker
@@ -76,6 +78,7 @@ def runtime_metadata(model, tokenizer, device, config):
         "prompt_format": config["GenerationConfig"].get("prompt_format", "plain"),
         "chat_template": tokenizer.get_chat_template() if config["GenerationConfig"].get("prompt_format") == "chat" else None,
         "sequence_likelihood_dtype": "float32", "ratio_and_covariance_dtype": "float64",
+        "measurement_likelihood_method": "generation_capture_then_cached_replay_v1",
     }
 
 
@@ -150,6 +153,8 @@ def sample_record(sample, index, completions, *, run_id, distribution, kind, sou
         "eos_token_id": sample.generated.eos_token_id,
         "min_new_tokens": sample.generated.min_new_tokens,
         "stop_reason": sample.generated.stop_reason,
+        "generation_batch_size": sample.generated.generation_batch_size,
+        "likelihood_method": "full_sequence_training" if kind == "training" else "generation_capture_then_cached_replay_v1",
         "traits": sample.traits.to_json_dict(),
         "pre_logprob": sample.pre_logprob, "post_logprob": sample.post_logprob,
     }
@@ -182,6 +187,7 @@ def train_run(study_dir, run_id):
                         model, tokenizer, optimizer, training_examples(config, step),
                         config["GenerationConfig"], group_size=train["group_size"], eps=float(train["eps"]),
                         max_grad_norm=float(train["max_grad_norm"]), device=device,
+                        microbatch_prompts=train.get("microbatch_prompts"),
                     )
                     checkpoints.append(save_checkpoint(model, directory, step + 1))
                     with gzip.open(directory / f"train_{step:04d}.jsonl.gz", "xt") as raw:
@@ -205,8 +211,9 @@ def collect_pool(model, tokenizer, device, config, examples, completions, path, 
     samples = []
     with isolated_rng(seed), gzip.open(path, "xt") as raw:
         for example in examples:
-            group = sample_rollouts(model, tokenizer, [example], config["GenerationConfig"], completions, device)
-            group = attach_logprobs(model, tokenizer, group, device, "pre_logprob")
+            group = sample_rollouts(model, tokenizer, [example], config["GenerationConfig"], completions, device,
+                                    capture_logprobs=True)
+            group = [replace(s, pre_logprob=s.generated.sampling_logprob) for s in group]
             for sample in group:
                 write_row(raw, sample_record(
                     sample, len(samples), completions, run_id=run_id, distribution=distribution,
@@ -218,10 +225,12 @@ def collect_pool(model, tokenizer, device, config, examples, completions, path, 
 
 
 def score_successor(model, tokenizer, device, samples, completions):
-    # Match the source-scoring batch boundaries exactly, including padding.
+    # Preserve the original generation batches, including rows that stopped early.
     result = []
     for start in range(0, len(samples), completions):
-        result.extend(attach_logprobs(model, tokenizer, samples[start:start + completions], device, "post_logprob"))
+        group = samples[start:start + completions]
+        scores = cached_sequence_logprobs(model, group, tokenizer.pad_token_id, device)
+        result.extend(replace(s, post_logprob=float(score)) for s, score in zip(group, scores.cpu().tolist()))
     delta = np.array([s.post_logprob - s.pre_logprob for s in result], dtype=np.float64)
     with np.errstate(over="raise", invalid="raise"):
         omega = np.exp(delta)

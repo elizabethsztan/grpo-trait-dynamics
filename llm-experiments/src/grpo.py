@@ -76,6 +76,7 @@ def sample_rollouts(
     completions_per_prompt: int,
     device,
     activation_probe=None,
+    capture_logprobs=False,
 ) -> list[RolloutSample]:
     samples: list[RolloutSample] = []
     for example in examples:
@@ -86,6 +87,7 @@ def sample_rollouts(
             generation_cfg,
             num_return_sequences=completions_per_prompt,
             device=device,
+            capture_logprobs=capture_logprobs,
         )
         for completion in generated:
             samples.append(
@@ -131,9 +133,12 @@ def train_grpo_step(
     max_grad_norm: float,
     device,
     activation_probe=None,
+    microbatch_prompts=None,
 ) -> tuple[dict, list[RolloutSample]]:
     import torch
 
+    if microbatch_prompts is not None and (type(microbatch_prompts) is not int or microbatch_prompts < 1):
+        raise ValueError("microbatch_prompts must be a positive integer or None")
     samples = sample_rollouts(
         model,
         tokenizer,
@@ -145,13 +150,18 @@ def train_grpo_step(
     )
     rewards = np.asarray([sample.traits.reward for sample in samples], dtype=float).reshape(len(examples), group_size)
     advantages = compute_group_advantages(rewards, eps=eps).reshape(-1)
-    logprobs = sequence_logprobs(model, samples, tokenizer.pad_token_id, device=device, with_grad=True)
-    pre_logprob_values = [float(value) for value in logprobs.detach().cpu().tolist()]
-    advantage_tensor = torch.tensor(advantages, dtype=logprobs.dtype, device=logprobs.device)
-    loss = -(advantage_tensor.detach() * logprobs).mean()
-
     optimizer.zero_grad()
-    loss.backward()
+    chunk_size = group_size * microbatch_prompts if microbatch_prompts is not None else len(samples)
+    pre_logprob_values, loss_value = [], 0.0
+    for start in range(0, len(samples), chunk_size):
+        chunk = samples[start:start + chunk_size]
+        logprobs = sequence_logprobs(model, chunk, tokenizer.pad_token_id, device=device, with_grad=True)
+        pre_logprob_values.extend(logprobs.detach().cpu().tolist())
+        advantage_tensor = torch.tensor(advantages[start:start + len(chunk)], dtype=logprobs.dtype, device=logprobs.device)
+        # Normalize by the full batch, including an uneven final chunk.
+        loss = -(advantage_tensor.detach() * logprobs).sum() / len(samples)
+        loss.backward()
+        loss_value += float(loss.detach().cpu())
     if max_grad_norm is not None and max_grad_norm > 0:
         torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], max_grad_norm)
     optimizer.step()
@@ -159,7 +169,7 @@ def train_grpo_step(
     train_summary = summarize_trait_metrics(sample.traits for sample in samples)
     train_summary.update(
         {
-            "loss": float(loss.detach().cpu()),
+            "loss": loss_value,
             "reward_mean": float(rewards.mean()),
             "reward_std": float(rewards.std()),
         }
