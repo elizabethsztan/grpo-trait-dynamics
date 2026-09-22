@@ -182,7 +182,8 @@ def test_checkpoint_replay_restores_distinct_weights(config, tmp_path, tiny_load
         runner.load_checkpoint(model, tmp_path, zero)
 
 
-def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_path, tiny_loader):
+@pytest.mark.parametrize("batch_size", [1, 2])
+def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_path, tiny_loader, batch_size):
     root = tmp_path / "pilot"
     manifest = prepare_study(config, root, "pilot")
     run_id = manifest["runs"][0]["run_id"]
@@ -208,7 +209,7 @@ def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_pat
     np.random.seed(19)
     torch.manual_seed(19)
     python_state, numpy_state, torch_state = random.getstate(), np.random.get_state(), torch.get_rng_state().clone()
-    output = runner.measure_run(root, run_id, "initial")
+    output = runner.measure_run(root, run_id, "initial", question_batch_size=batch_size)
     assert random.getstate() == python_state
     assert np.random.get_state()[0] == numpy_state[0]
     np.testing.assert_array_equal(np.random.get_state()[1], numpy_state[1])
@@ -233,7 +234,7 @@ def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_pat
             assert len({r["group_id"] for r in paired}) == 2
             for old, new in zip(source, paired):
                 assert old["likelihood_method"] == new["likelihood_method"] == "generation_capture_then_cached_replay_v1"
-                assert old["generation_batch_size"] == new["generation_batch_size"] == 2
+                assert old["generation_batch_size"] == new["generation_batch_size"] == 2 * batch_size
                 assert old["prompt_ids"] == new["prompt_ids"] == [1, 4, 3]
                 assert old["completion_ids"] == new["completion_ids"]
                 assert old["pre_logprob"] == new["pre_logprob"]
@@ -254,10 +255,10 @@ def test_complete_training_measurement_replay_and_raw_accounting(config, tmp_pat
         assert rows[2]["observed_eval"][distribution]["agreement_rate"] == prevalence
 
     with pytest.raises(FileExistsError):
-        runner.measure_run(root, run_id, "initial")
-    replay = runner.measure_run(root, run_id, "replay")
+        runner.measure_run(root, run_id, "initial", question_batch_size=batch_size)
+    replay = runner.measure_run(root, run_id, "replay", question_batch_size=batch_size)
     assert list(read_rows(replay / "metrics.jsonl")) == rows
-    larger = runner.measure_run(root, run_id, "larger", prompts=4)
+    larger = runner.measure_run(root, run_id, "larger", prompts=4, question_batch_size=batch_size)
     for distribution in PRICE_DISTRIBUTIONS:
         original = list(read_rows(output / f"source_0000_{distribution}.jsonl.gz"))
         expanded = list(read_rows(larger / f"source_0000_{distribution}.jsonl.gz"))
@@ -353,3 +354,29 @@ def test_checkpoint_writing_does_not_change_training(config, tmp_path, monkeypat
         left = list(read_rows(first / f"train_{step:04d}.jsonl.gz"))
         right = list(read_rows(second / f"train_{step:04d}.jsonl.gz"))
         assert [r["completion_ids"] for r in left] == [r["completion_ids"] for r in right]
+
+
+def test_partial_measurement_batch_preserves_artifact_replay(config, tmp_path, tiny_loader):
+    from src.generation import GeneratedCompletion
+    from src.logprobs import cached_sequence_logprobs
+    from src.bootstrap import bootstrap_measurement
+
+    root = tmp_path / "partial"
+    manifest = prepare_study(config, root, "pilot")
+    run_id = manifest["runs"][0]["run_id"]
+    directory = runner.train_run(root, run_id)
+    output = runner.measure_run(root, run_id, "batch3", prompts=4, question_batch_size=3)
+    model, tokenizer = tiny_loader[-1], TinyTokenizer()
+    checkpoints = read_json(directory / "checkpoints.json")["checkpoints"]
+    runner.load_checkpoint(model, directory, checkpoints[1])
+    records = list(read_rows(output / "price_0000_0001_eval_wrong_hint.jsonl.gz"))
+    assert [r["generation_batch_size"] for r in records] == [6] * 6 + [2] * 2
+    assert [r["generation_batch_row"] for r in records] == list(range(6)) + [0, 1]
+    assert [r["group_index"] for r in records] == [0, 0, 1, 1, 2, 2, 3, 3]
+    for batch in (records[:6], records[6:]):
+        samples = [GeneratedCompletion(**{k: r[k] for k in (
+            "prompt_ids", "completion_ids", "completion_text", "eos_token_id", "min_new_tokens",
+            "generation_batch_size", "generation_batch_row", "prompt_attention_mask")}) for r in batch]
+        scores = cached_sequence_logprobs(model, samples, tokenizer.pad_token_id)
+        torch.testing.assert_close(scores, torch.tensor([r["post_logprob"] for r in batch]), atol=0, rtol=0)
+    assert set(bootstrap_measurement(output, tmp_path / "bootstrap_partial", draws=100)) == set(PRICE_DISTRIBUTIONS)

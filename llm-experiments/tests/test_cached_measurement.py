@@ -14,7 +14,7 @@ class Tokenizer:
     pad_token_id, eos_token_id = 0, 2
 
     def encode(self, text, add_special_tokens=True):
-        return [1, 3, 4]
+        return [1, 3, 4] + [5] * (len(text) % 3)
 
     def decode(self, ids, skip_special_tokens=True):
         return str(ids)
@@ -66,12 +66,13 @@ def test_capture_does_not_change_samples_rng_or_model_generation_configuration()
     assert original.to_dict() == before
 
 
-def test_post_update_replay_matches_generation_on_the_old_responses(monkeypatch):
+@pytest.mark.parametrize("prompts", ["prompt", ["a", "bb", "ccc"]])
+def test_post_update_replay_matches_generation_on_the_old_responses(monkeypatch, prompts):
     from peft import LoraConfig, get_peft_model
 
     model, tokenizer = model_and_tokenizer()
     model = get_peft_model(model, LoraConfig(task_type='CAUSAL_LM', r=2, target_modules=['q_proj','v_proj'])).eval()
-    samples = generate_completions(model, tokenizer, 'prompt', {'max_new_tokens': 6}, 8, 'cpu', True)
+    samples = generate_completions(model, tokenizer, prompts, {'max_new_tokens': 6}, 8, 'cpu', True)
     old = torch.tensor([s.sampling_logprob for s in samples])
     # Exercise a real adapter gradient/update, then evaluate the original responses.
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=.1)
@@ -89,7 +90,7 @@ def test_post_update_replay_matches_generation_on_the_old_responses(monkeypatch)
         step += 1
         return torch.tensor(ids, device=probs.device)[:, None]
     monkeypatch.setattr(torch, 'multinomial', choose)
-    reference = generate_completions(model, tokenizer, 'prompt', {'max_new_tokens': 6}, 8, 'cpu', True)
+    reference = generate_completions(model, tokenizer, prompts, {'max_new_tokens': 6}, 8, 'cpu', True)
     assert [s.completion_ids for s in reference] == [s.completion_ids for s in samples]
     torch.testing.assert_close(actual, torch.tensor([s.sampling_logprob for s in reference]), atol=1e-6, rtol=0)
 
@@ -126,3 +127,17 @@ def test_exhaustive_cached_distribution_normalizes_and_obeys_price_identity():
     assert q.sum() == pytest.approx(1, abs=1e-6)
     trait = np.array([s.completion_ids[0] == 3 for s in samples], dtype=float)
     assert price_covariance(q/p, trait, weights=p) == pytest.approx(np.sum((q-p)*trait), abs=1e-6)
+
+
+@pytest.mark.parametrize("pad", [0, 2])
+def test_mixed_length_prompt_batches_replay_and_reject_reordering(pad):
+    model, tokenizer = model_and_tokenizer(pad)
+    samples = generate_completions(model, tokenizer, ["a", "bb", "ccc"],
+                                   {"max_new_tokens": 6}, 2, "cpu", True)
+    assert [s.prompt_attention_mask for s in samples[::2]] == [
+        [0, 1, 1, 1, 1], [1, 1, 1, 1, 1], [0, 0, 1, 1, 1]]
+    assert [s.generation_batch_row for s in samples] == list(range(6))
+    torch.testing.assert_close(cached_sequence_logprobs(model, samples, pad),
+                               torch.tensor([s.sampling_logprob for s in samples]), atol=1e-6, rtol=0)
+    with pytest.raises(ValueError, match="intact"):
+        cached_sequence_logprobs(model, samples[::-1], pad)

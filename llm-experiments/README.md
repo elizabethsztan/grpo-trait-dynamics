@@ -61,7 +61,8 @@ The answer parser, reward, and empirical covariance are unchanged.
 
 Paper measurements capture the old-policy likelihood directly from the scores
 used during generation. The new policy scores the same response token by token
-with its own fresh cache. Replay preserves the original prompt tokens, batch size,
+with its own fresh cache. Replay preserves left-padded prompt tokens and attention
+masks, position IDs, original row order, batch size,
 EOS suppression, and finished rows (padded until the other rows finish). This
 matches generation's execution path: bfloat16 whole-sequence scoring can produce
 different logits despite the float32 normalization above. The training objective
@@ -142,8 +143,13 @@ python run_paper_study.py measure --study results/paper_pilots_v1 \
 ```
 
 Changing the measurement ID alone performs a deterministic replay, not an
-independent replication. Increasing the prompt count retains the original sample
-prefix. Separate random streams distinguish direct evaluations from Price pools,
+independent replication when the batch size and execution environment also match.
+The CLI defaults to `--question-batch-size 64` (128 sequences with two responses
+per question); training batching is unchanged. The Python measurement API retains
+a default of one question for compatibility. The selected size is saved in the
+measurement config and status. Partial final batches use their actual size.
+Increasing the prompt count retains complete original batches; expanding a
+previously partial batch or changing batch size changes its sampled responses. Separate random streams distinguish direct evaluations from Price pools,
 and measurement restores the caller's Python, NumPy, and Torch random states.
 Source and successor likelihoods use the same prompt-group batch boundaries;
 replay refuses groups whose size differs from their recorded generation size.
@@ -159,7 +165,8 @@ bank hashes are verified before replay.
 
 Raw `observed_*.jsonl.gz` and `source_*.jsonl.gz` files include full prompts,
 response tokens/text, traits, stopping metadata, group/response indices, source
-checkpoint identity, generation batch size, likelihood method, and old likelihoods.
+checkpoint identity, generation batch size and row index, prompt attention mask,
+likelihood method, and old likelihoods.
 Paired `price_*.jsonl.gz` files add the
 successor likelihood, successor checkpoint identity, and source-pool hash.
 `files.json` inventories the completed measurement files and their checksums.

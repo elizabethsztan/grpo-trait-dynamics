@@ -77,19 +77,24 @@ def sample_rollouts(
     device,
     activation_probe=None,
     capture_logprobs=False,
+    question_batch_size=1,
 ) -> list[RolloutSample]:
     samples: list[RolloutSample] = []
-    for example in examples:
+    if type(question_batch_size) is not int or question_batch_size < 1:
+        raise ValueError("question_batch_size must be a positive integer")
+    for start in range(0, len(examples), question_batch_size):
+        batch = examples[start:start + question_batch_size]
         generated = generate_completions(
             model,
             tokenizer,
-            example.prompt_text,
+            [example.prompt_text for example in batch],
             generation_cfg,
             num_return_sequences=completions_per_prompt,
             device=device,
             capture_logprobs=capture_logprobs,
         )
-        for completion in generated:
+        for row, completion in enumerate(generated):
+            example = batch[row // completions_per_prompt]
             samples.append(
                 RolloutSample(
                     example=example,

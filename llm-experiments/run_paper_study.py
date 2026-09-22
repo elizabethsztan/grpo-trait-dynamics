@@ -21,6 +21,7 @@ def main():
         command.add_argument("--run-id", required=True)
         if name == "measure":
             command.add_argument("--measurement-id", required=True)
+            command.add_argument("--question-batch-size", type=int, default=64, help="questions per offline generation/replay batch (default: 64)")
             command.add_argument("--prompts", type=int, help="use a larger prefix of the saved bank without retraining")
     status = commands.add_parser("status")
     status.add_argument("--study", required=True)
@@ -43,7 +44,7 @@ def main():
         if args.command == "train":
             print(train_run(args.study, args.run_id))
         else:
-            print(measure_run(args.study, args.run_id, args.measurement_id, args.prompts))
+            print(measure_run(args.study, args.run_id, args.measurement_id, args.prompts, args.question_batch_size))
 
 
 if __name__ == "__main__":

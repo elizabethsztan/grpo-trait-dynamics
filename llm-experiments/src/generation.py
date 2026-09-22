@@ -14,6 +14,8 @@ class GeneratedCompletion:
     stop_reason: str | None = None
     sampling_logprob: float | None = None
     generation_batch_size: int | None = None
+    prompt_attention_mask: list[int] | None = None
+    generation_batch_row: int | None = None
 
     @property
     def completion_token_length(self) -> int:
@@ -85,15 +87,24 @@ def generate_completions(model, tokenizer, prompt_text: str, generation_config: 
     resolved.num_return_sequences = num_return_sequences
     resolved.return_dict_in_generate = capture_logprobs
     resolved.output_scores = capture_logprobs
-    if generation_config.get("prompt_format", "plain") == "chat":
-        prompt_ids = tokenizer.apply_chat_template(
-            [{"role": "user", "content": prompt_text}],
-            tokenize=True, add_generation_prompt=True, return_dict=False,
-        )
-    else:
-        prompt_ids = tokenizer.encode(prompt_text, add_special_tokens=True)
-    input_ids = torch.tensor([prompt_ids], dtype=torch.long, device=device)
-    attention_mask = torch.ones_like(input_ids)
+    prompts = [prompt_text] if isinstance(prompt_text, str) else list(prompt_text)
+    if not prompts:
+        return []
+    encoded = []
+    for text in prompts:
+        if generation_config.get("prompt_format", "plain") == "chat":
+            ids = tokenizer.apply_chat_template(
+                [{"role": "user", "content": text}],
+                tokenize=True, add_generation_prompt=True, return_dict=False,
+            )
+        else:
+            ids = tokenizer.encode(text, add_special_tokens=True)
+        encoded.append(list(ids))
+    prompt_len = max(map(len, encoded))
+    padded = [[tokenizer.pad_token_id] * (prompt_len - len(ids)) + ids for ids in encoded]
+    masks = [[0] * (prompt_len - len(ids)) + [1] * len(ids) for ids in encoded]
+    input_ids = torch.tensor(padded, dtype=torch.long, device=device)
+    attention_mask = torch.tensor(masks, dtype=torch.long, device=device)
 
     # Transformers can fill unset fields from model.generation_config even when
     # an explicit config is passed. Use our policy as that fallback as well.
@@ -112,7 +123,6 @@ def generate_completions(model, tokenizer, prompt_text: str, generation_config: 
         base_model.generation_config = previous_base_config
 
     completions = []
-    prompt_len = len(prompt_ids)
     sequences = outputs.sequences if capture_logprobs else outputs
     for row, sequence in enumerate(sequences):
         completion_ids = truncate_after_eos(
@@ -122,7 +132,7 @@ def generate_completions(model, tokenizer, prompt_text: str, generation_config: 
         )
         completions.append(
             GeneratedCompletion(
-                prompt_ids=list(prompt_ids),
+                prompt_ids=list(padded[row // num_return_sequences]),
                 completion_ids=completion_ids,
                 completion_text=tokenizer.decode(completion_ids, skip_special_tokens=True),
                 eos_token_id=resolved.eos_token_id,
@@ -132,7 +142,9 @@ def generate_completions(model, tokenizer, prompt_text: str, generation_config: 
                     outputs.scores[t][row].float().log_softmax(-1)[token]
                     for t, token in enumerate(completion_ids)
                 ]).sum().item()) if capture_logprobs else None,
-                generation_batch_size=num_return_sequences,
+                generation_batch_size=len(prompts) * num_return_sequences,
+                prompt_attention_mask=list(masks[row // num_return_sequences]),
+                generation_batch_row=row,
             )
         )
     return completions

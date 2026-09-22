@@ -63,10 +63,18 @@ def cached_sequence_logprobs(model, samples, pad_token_id, device=None):
     first = generated[0]
     if model.training:
         raise ValueError("cached measurement requires model.eval()")
-    if any(s.prompt_ids != first.prompt_ids or s.generation_batch_size != len(samples)
+    if any(len(s.prompt_ids) != len(first.prompt_ids) or s.generation_batch_size != len(samples)
            or s.eos_token_id != first.eos_token_id or s.min_new_tokens != first.min_new_tokens
            or not s.completion_ids for s in generated):
         raise ValueError("replay requires one intact generation group with matching sampling settings")
+    for row, sample in enumerate(generated):
+        if sample.generation_batch_row is not None and sample.generation_batch_row != row:
+            raise ValueError("replay requires one intact generation group in original row order")
+        mask = sample.prompt_attention_mask
+        if mask is not None and (len(mask) != len(sample.prompt_ids) or not mask
+                                 or mask[-1] != 1 or any(x not in (0, 1) for x in mask)
+                                 or mask != sorted(mask)):
+            raise ValueError("invalid left-padded prompt attention mask")
     base = model.get_base_model() if hasattr(model, "get_base_model") else model
     # Match Transformers' last-token logits optimization when supported.
     forward_kwargs = {"logits_to_keep": 1} if "logits_to_keep" in inspect.signature(base.forward).parameters else {}
@@ -74,12 +82,14 @@ def cached_sequence_logprobs(model, samples, pad_token_id, device=None):
     tokens = torch.full((len(samples), max(lengths)), pad_token_id, dtype=torch.long, device=device)
     for row, sample in enumerate(generated):
         tokens[row, :lengths[row]] = torch.tensor(sample.completion_ids, device=device)
-    inputs = torch.tensor([first.prompt_ids] * len(samples), device=device)
-    mask = torch.ones_like(inputs)
+    inputs = torch.tensor([s.prompt_ids for s in generated], device=device)
+    mask = torch.tensor([s.prompt_attention_mask or [1] * len(s.prompt_ids) for s in generated], device=device)
     cache, scores = None, []
     with torch.no_grad():
         for t in range(max(lengths)):
-            output = model(input_ids=inputs, attention_mask=mask, past_key_values=cache,
+            positions = (mask.long().cumsum(-1) - 1).masked_fill(mask == 0, 0)
+            output = model(input_ids=inputs, attention_mask=mask,
+                           position_ids=positions if t == 0 else positions[:, -1:], past_key_values=cache,
                            use_cache=True, **forward_kwargs)
             cache = output.past_key_values
             if cache is None:

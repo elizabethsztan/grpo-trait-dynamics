@@ -154,6 +154,8 @@ def sample_record(sample, index, completions, *, run_id, distribution, kind, sou
         "min_new_tokens": sample.generated.min_new_tokens,
         "stop_reason": sample.generated.stop_reason,
         "generation_batch_size": sample.generated.generation_batch_size,
+        "generation_batch_row": sample.generated.generation_batch_row,
+        "prompt_attention_mask": sample.generated.prompt_attention_mask,
         "likelihood_method": "full_sequence_training" if kind == "training" else "generation_capture_then_cached_replay_v1",
         "traits": sample.traits.to_json_dict(),
         "pre_logprob": sample.pre_logprob, "post_logprob": sample.post_logprob,
@@ -210,9 +212,10 @@ def train_run(study_dir, run_id):
 def collect_pool(model, tokenizer, device, config, examples, completions, path, *, seed, run_id, kind, distribution, source):
     samples = []
     with isolated_rng(seed), gzip.open(path, "xt") as raw:
-        for example in examples:
-            group = sample_rollouts(model, tokenizer, [example], config["GenerationConfig"], completions, device,
-                                    capture_logprobs=True)
+        batch_size = config.get("MeasurementConfig", {}).get("question_batch_size", 1)
+        for start in range(0, len(examples), batch_size):
+            group = sample_rollouts(model, tokenizer, examples[start:start + batch_size], config["GenerationConfig"], completions, device,
+                                    capture_logprobs=True, question_batch_size=batch_size)
             group = [replace(s, pre_logprob=s.generated.sampling_logprob) for s in group]
             for sample in group:
                 write_row(raw, sample_record(
@@ -227,8 +230,13 @@ def collect_pool(model, tokenizer, device, config, examples, completions, path, 
 def score_successor(model, tokenizer, device, samples, completions):
     # Preserve the original generation batches, including rows that stopped early.
     result = []
-    for start in range(0, len(samples), completions):
-        group = samples[start:start + completions]
+    start = 0
+    while start < len(samples):
+        batch_size = samples[start].generated.generation_batch_size
+        if not batch_size or batch_size % completions:
+            raise ValueError("invalid measurement generation batch size")
+        group = samples[start:start + batch_size]
+        start += batch_size
         scores = cached_sequence_logprobs(model, group, tokenizer.pad_token_id, device)
         result.extend(replace(s, post_logprob=float(score)) for s, score in zip(group, scores.cpu().tolist()))
     delta = np.array([s.post_logprob - s.pre_logprob for s in result], dtype=np.float64)
@@ -239,7 +247,9 @@ def score_successor(model, tokenizer, device, samples, completions):
     return result
 
 
-def measure_run(study_dir, run_id, measurement_id, prompts=None):
+def measure_run(study_dir, run_id, measurement_id, prompts=None, question_batch_size=1):
+    if type(question_batch_size) is not int or question_batch_size < 1:
+        raise ValueError("question_batch_size must be a positive integer")
     study_dir = Path(study_dir)
     manifest, run = load_study(study_dir, run_id)
     if not re.fullmatch(r"[A-Za-z0-9_-]+", measurement_id):
@@ -262,11 +272,12 @@ def measure_run(study_dir, run_id, measurement_id, prompts=None):
     examples = bank_examples(study_dir, manifest, prompts)
     config["PriceConfig"]["prompts_per_distribution"] = prompts
     config["ObservedEvalConfig"]["prompts_per_distribution"] = prompts
+    config["MeasurementConfig"] = {"question_batch_size": question_batch_size}
     output = study_dir / "measurements" / run_id / measurement_id
     with attempt(output, phase="measurement", run_id=run_id, measurement_id=measurement_id,
                  study_manifest_sha256=manifest_hash, source=provenance(),
                  training_status_sha256=digest(directory / "status.json"), bank=manifest["bank"],
-                 measurement_prompts=prompts) as status:
+                 measurement_prompts=prompts, question_batch_size=question_batch_size) as status:
         write_json(output / "config.json", config)
         with isolated_rng(stream_seed(run["seed"], "measurement_model")):
             model, tokenizer, device = load_model(config)
