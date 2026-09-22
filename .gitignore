@@ -1,5 +1,6 @@
 .venv/
-results/
+**/results/*/checkpoints/
+**/results/slurm_logs/
 __pycache__/
 *.pyc
 docs/

@@ -1,0 +1,99 @@
+{
+  "n_prompts": 128,
+  "G": 8,
+  "temperature": 1.0,
+  "per_source": {
+    "eval": {
+      "accuracy": 0.1201,
+      "sd_over_prompts": 0.1307,
+      "ci95": [
+        0.0977,
+        0.1436
+      ],
+      "n": 128,
+      "spot_check": [
+        {
+          "q": "Steve put together a puzzle that took 10 hours of hard work to complete. Anna put together the same puzzle in 2 hours mo",
+          "pred": "7",
+          "gold": "7",
+          "reward": 0.125
+        },
+        {
+          "q": "Billy is peeling and cutting potatoes in preparation for making potato salad for his big family reunion barbecue. It's a",
+          "pred": "40000",
+          "gold": "95",
+          "reward": 0.0
+        },
+        {
+          "q": "Jean is two years older than Mark.  Two years ago Mark was 5 years older than half Jan's age.  If Jan is 30 how old is J",
+          "pred": "1105",
+          "gold": "23",
+          "reward": 0.0
+        },
+        {
+          "q": "Jenna starts out with 8 sapphires. She trades 3 sapphires for two rubies. If sapphires are worth $800 and rubies are wor",
+          "pred": "400",
+          "gold": "6400",
+          "reward": 0.0
+        },
+        {
+          "q": "Sheila charged $85.00 worth of merchandise on her credit card.  She ended up returning one item that cost $15.00.  After",
+          "pred": "85.00",
+          "gold": "113",
+          "reward": 0.0
+        }
+      ]
+    },
+    "svamp": {
+      "accuracy": 0.1357,
+      "sd_over_prompts": 0.1235,
+      "ci95": [
+        0.1143,
+        0.1572
+      ],
+      "n": 128,
+      "spot_check": [
+        {
+          "q": "Paul had 108 books and 55 pens. After selling some books and pens in a garage sale he had 66 books and 59 pens left. How",
+          "pred": "42",
+          "gold": "42",
+          "reward": 0.375
+        },
+        {
+          "q": "Dave had 19 apps and 18 files on his phone. After deleting some apps and files he had 6 apps and 15 files left. How many",
+          "pred": "4",
+          "gold": "9",
+          "reward": 0.0
+        },
+        {
+          "q": "Mom buys 70 white t - shirts in total. If white t - shirts can be purchased in packages and mom buys 14 packages How man",
+          "pred": "6",
+          "gold": "5",
+          "reward": 0.125
+        },
+        {
+          "q": "Mary is baking a cake. The recipe calls for 12 cups of flour and 13 cups of sugar. She already put in 2 cups of sugar. H",
+          "pred": "9",
+          "gold": "11",
+          "reward": 0.125
+        },
+        {
+          "q": "They decided to hold the party in their backyard. They have some sets of tables, each having the 3 chairs. If there are ",
+          "pred": "174.75",
+          "gold": "3",
+          "reward": 0.25
+        }
+      ]
+    }
+  },
+  "gaps": {
+    "eval_minus_svamp": {
+      "delta": -0.0156,
+      "ci95": [
+        -0.0469,
+        0.0156
+      ],
+      "p_gap_gt_0": 0.1579
+    }
+  }
+}

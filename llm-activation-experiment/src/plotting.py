@@ -16,55 +16,138 @@ plt.rcParams.update({
 def _load(jsonl_path):
     return [json.loads(l) for l in open(jsonl_path)]
 
+def _grid_layout(rows, features_path):
+    """Panel labels/order for the per-feature grid, shared by grid_price and grid_price_seeds.
 
-def plot_from_jsonl(jsonl_path, out_dir):
-    out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
-    rows = _load(jsonl_path)
-    if not rows:
-        return
-    N_max = max(r["N"] for r in rows)
+    Returns (labels, slots, cols, title_fn). One group per row: cols = the largest group,
+    shorter groups padded with None so a row NEVER straddles two groups. That is what makes
+    sharey='row' mean "one y-scale per group" -- per-panel autoscale magnifies each control's
+    sampling noise to fill its frame and reads as false "signal", while a single global scale
+    squashes the controls to invisibility against the larger negative-feature drifts.
+    (Deriving cols from the group sizes rather than a fixed 5 keeps this correct when features
+    are dropped -- e.g. 4/4/4 gives a clean 3x4 rather than a 5+5+2 that splits the groups.)
+    """
     present = {r["feature_id"] for r in rows}
-    colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
-    # Prediction = the omega_bar-corrected covariance form (Adil-style); fall back to
-    # the naive "price" for old runs that predate the cov field.
-    pred_of = lambda r: r.get("cov", r["price"])
-
-    # Feature labels + panel order from features.json (same dir), if available. Its
-    # positive/negative lists are ranked by reward-correlation (rank 1 = strongest), so
-    # "+#3 (rho=0.33)" = 3rd most reward-correlated feature; "-#1" = most anti-correlated.
+    # positive/negative lists in features.json are ranked by reward-correlation (rank 1 =
+    # strongest), so "+#3 (rho=0.33)" = 3rd most reward-correlated; "-#1" = most anti-correlated.
     labels = {}
-    fpath = Path(jsonl_path).parent / "features.json"
-    if fpath.exists():
-        fj = json.load(open(fpath))
+    if features_path.exists():
+        fj = json.load(open(features_path))
         for i, e in enumerate(fj.get("positive", [])):
             labels[e["feature_id"]] = (f"+#{i + 1}", e.get("rho_val"))
         for i, e in enumerate(fj.get("negative", [])):
             labels[e["feature_id"]] = (f"−#{i + 1}", e.get("rho_val"))
         for e in fj.get("controls", []):
             labels[e["feature_id"]] = ("ctrl", e.get("rho_val"))
-        order = ([e["feature_id"] for e in fj.get("positive", [])]
-                 + [e["feature_id"] for e in fj.get("negative", [])]
-                 + [e["feature_id"] for e in fj.get("controls", [])])
-        feats = [f for f in order if f in present] + sorted(present - set(order))
+        groups = [[e["feature_id"] for e in fj.get(g, []) if e["feature_id"] in present]
+                  for g in ("positive", "negative", "controls")]
+        extra = sorted(present - {f for g in groups for f in g})
+        if extra:
+            groups.append(extra)
+        groups = [g for g in groups if g]
+    else:
+        groups = None
+    if groups:
+        cols = max(len(g) for g in groups)
+        slots = [f for g in groups for f in list(g) + [None] * (cols - len(g))]
     else:
         feats = sorted(present)
+        cols = min(5, len(feats))
+        slots = feats + [None] * (-len(feats) % cols)
 
-    def _title(fid, fr):
+    def title(fid, fr):
         lab, rho = labels.get(fid, (None, None))
         if lab is None:
             return f"feat {fid}{' (ctrl)' if (fr and fr[0]['is_control']) else ''}"
         return f"feat {fid}  {lab}" + (f" (ρ={rho:+.2f})" if rho is not None else "")
 
-    # grid_price: cumulative observed (direct) vs predicted (cov) at N_max, per feature
-    n = len(feats); cols = min(5, n); rows_g = int(np.ceil(n / cols))
-    # sharey='row': one y-scale per row (rows are grouped positive / negative / control),
-    # so features are comparable within a group and each group uses its natural range --
-    # per-panel autoscale otherwise magnifies each control's sampling noise to fill its
-    # frame and reads as a false "signal", while a single global scale squashes controls
-    # to invisibility against the larger negative-feature drifts.
+    return labels, slots, cols, title
+
+
+def _cum_series(rows, fid, N):
+    """(steps, cumulative observed ΔT, cumulative Price cov) for one feature at sample size N."""
+    fr = sorted((r for r in rows if r["feature_id"] == fid and r["N"] == N), key=lambda r: r["step"])
+    steps = np.array([r["step"] for r in fr])
+    obs = np.cumsum([r["direct_drift"] for r in fr])
+    pred = np.cumsum([_pred_of(r) for r in fr])
+    return steps, obs, pred, fr
+
+
+# Prediction = the omega_bar-corrected covariance form (Adil-style); fall back to
+# the naive "price" for old runs that predate the cov field.
+_pred_of = lambda r: r.get("cov", r["price"])
+
+
+def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds"):
+    """grid_price across GRPO seeds: each seed's cumulative curve drawn light, the
+    across-seed mean in bold. Features/steps must match across seeds (same features.json,
+    same Phase-3 schedule); features.json and panel order are taken from the FIRST run."""
+    out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    jsonl_paths = [Path(p) for p in jsonl_paths]
+    drop = set(drop or ())
+    per_seed = []
+    for p in jsonl_paths:
+        rows = [r for r in _load(p) if r["feature_id"] not in drop]
+        per_seed.append(rows)
+    if not per_seed or not per_seed[0]:
+        return
+    N_max = min(max(r["N"] for r in rows) for rows in per_seed)
+    labels, slots, cols, title = _grid_layout(per_seed[0], jsonl_paths[0].parent / "features.json")
+    rows_g = len(slots) // cols
+    colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
     fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g),
                              squeeze=False, sharey="row")
-    for ax, fid in zip(axes.flat, feats):
+    for ax, fid in zip(axes.flat, slots):
+        if fid is None:
+            ax.set_visible(False)
+            continue
+        series = [_cum_series(rows, fid, N_max) for rows in per_seed]
+        steps = series[0][0]
+        if any(len(s[0]) != len(steps) or not np.array_equal(s[0], steps) for s in series):
+            raise ValueError(f"feature {fid}: step schedules differ across seeds")
+        obs = np.stack([s[1] for s in series]); pred = np.stack([s[2] for s in series])
+        for o, pr in zip(obs, pred):
+            ax.plot(steps, o, color=colors[0], lw=0.8, alpha=0.3)
+            ax.plot(steps, pr, color=colors[1], lw=0.8, alpha=0.3)
+        ax.plot(steps, obs.mean(0), color=colors[0], lw=2, marker="o", ms=3, label="observed ΔT")
+        ax.plot(steps, pred.mean(0), color=colors[1], lw=2, marker="s", ms=3, label="Price (cov)")
+        ax.set_title(title(fid, series[0][3]), fontsize=9)
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    axes.flat[0].legend(frameon=False, fontsize=8,
+                        title=f"bold = mean of {len(per_seed)} seeds", title_fontsize=8)
+    fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
+    plt.tight_layout()
+    for ext in ("png", "pdf"):
+        plt.savefig(out_dir / f"{stem}.{ext}", dpi=150)
+    plt.close(fig)
+
+
+def plot_from_jsonl(jsonl_path, out_dir, drop=None):
+    out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    rows = _load(jsonl_path)
+    # drop: feature ids to exclude EVERYWHERE -- grid panels and the pooled scatter/decomp
+    # fits alike -- so the reported corr/slope always describes exactly the features shown.
+    drop = set(drop or ())
+    if drop:
+        rows = [r for r in rows if r["feature_id"] not in drop]
+    if not rows:
+        return
+    N_max = max(r["N"] for r in rows)
+    present = {r["feature_id"] for r in rows}
+    colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
+    pred_of = _pred_of
+
+    labels, slots, cols, _title = _grid_layout(rows, Path(jsonl_path).parent / "features.json")
+    feats = [f for f in slots if f is not None]
+    rows_g = len(slots) // cols
+
+    # grid_price: cumulative observed (direct) vs predicted (cov) at N_max, per feature
+    fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g),
+                             squeeze=False, sharey="row")
+    for ax, fid in zip(axes.flat, slots):
+        if fid is None:
+            ax.set_visible(False)
+            continue
         fr = [r for r in rows if r["feature_id"] == fid and r["N"] == N_max]
         fr.sort(key=lambda r: r["step"])
         steps = [r["step"] for r in fr]
@@ -74,8 +157,6 @@ def plot_from_jsonl(jsonl_path, out_dir):
         ax.plot(steps, pred, color=colors[1], marker="s", ms=3, label="Price (cov)")
         ax.set_title(_title(fid, fr), fontsize=9)
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-    for ax in axes.flat[len(feats):]:
-        ax.set_visible(False)
     axes.flat[0].legend(frameon=False, fontsize=8)
     fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
     plt.tight_layout()

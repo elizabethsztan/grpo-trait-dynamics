@@ -1,0 +1,103 @@
+{
+  "layer_L": 12,
+  "positive": [
+    {
+      "feature_id": 25273,
+      "rho_discovery": 0.2658,
+      "rho_val": 0.2311,
+      "activity": 0.4108
+    },
+    {
+      "feature_id": 27505,
+      "rho_discovery": 0.2646,
+      "rho_val": 0.2528,
+      "activity": 0.3767
+    },
+    {
+      "feature_id": 30964,
+      "rho_discovery": 0.2623,
+      "rho_val": 0.2238,
+      "activity": 0.4108
+    },
+    {
+      "feature_id": 30882,
+      "rho_discovery": 0.2603,
+      "rho_val": 0.229,
+      "activity": 0.41
+    },
+    {
+      "feature_id": 13989,
+      "rho_discovery": 0.2524,
+      "rho_val": 0.2334,
+      "activity": 0.41
+    }
+  ],
+  "negative": [
+    {
+      "feature_id": 25562,
+      "rho_discovery": -0.3956,
+      "rho_val": -0.3731,
+      "activity": 0.7917
+    },
+    {
+      "feature_id": 22838,
+      "rho_discovery": -0.381,
+      "rho_val": -0.3611,
+      "activity": 0.7942
+    },
+    {
+      "feature_id": 17120,
+      "rho_discovery": -0.3727,
+      "rho_val": -0.3439,
+      "activity": 0.7842
+    },
+    {
+      "feature_id": 22348,
+      "rho_discovery": -0.372,
+      "rho_val": -0.3599,
+      "activity": 0.8333
+    },
+    {
+      "feature_id": 27436,
+      "rho_discovery": -0.3703,
+      "rho_val": -0.3534,
+      "activity": 1.0
+    }
+  ],
+  "controls": [
+    {
+      "feature_id": 10288,
+      "rho_discovery": 0.0155,
+      "rho_val": 0.0002,
+      "activity": 0.2
+    },
+    {
+      "feature_id": 14034,
+      "rho_discovery": -0.0147,
+      "rho_val": -0.0003,
+      "activity": 0.21
+    },
+    {
+      "feature_id": 15128,
+      "rho_discovery": 0.0165,
+      "rho_val": 0.0003,
+      "activity": 0.105
+    },
+    {
+      "feature_id": 22996,
+      "rho_discovery": 0.0082,
+      "rho_val": 0.0003,
+      "activity": 0.9733
+    },
+    {
+      "feature_id": 1703,
+      "rho_discovery": 0.0098,
+      "rho_val": -0.0004,
+      "activity": 0.135
+    }
+  ],
+  "nuisance": {
+    "reward_vs_length": -0.3596,
+    "reward_vs_parse": 0.0
+  }
+}
