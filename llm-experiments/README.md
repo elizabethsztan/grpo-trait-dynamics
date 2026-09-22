@@ -43,6 +43,27 @@ uv run python plot_results.py --run-dir results/sycophancy_main
 
 The activation probe is a fixed evaluator, not a steering intervention. It is built before training from balanced counterfactual prompt-completion pairs, and LoRA trainable parameters are asserted to live only in layers strictly above the hook.
 
+## Sampling and likelihood accounting
+
+Sequence likelihoods use float32 log-softmax and float32 sequence sums even when
+model logits are bfloat16. For samples from `generate_completions`, scoring uses
+the recorded EOS ID and minimum generation length: EOS is suppressed and the
+remaining tokens are renormalized during the first `min_new_tokens` positions.
+The stopping EOS is included in the likelihood, including when PAD and EOS share
+an ID. A pad token sampled before termination remains part of the response.
+
+Generation explicitly supports sampling with temperature 1, top-p 1, top-k 0,
+and repetition penalty 1. Other sampling transformations and unknown generation
+settings are rejected because this scorer does not implement their likelihoods.
+Model-specific generation presets are not inherited. The model's generation
+configuration is restored after each generation call, including on failure.
+The prompt format, answer parser, reward, and empirical covariance are unchanged.
+
+Token-only samples without generation metadata retain raw-policy scoring for
+compatibility. They must not be substituted for generated samples in an
+accounting run that suppresses EOS. Historical likelihoods and trajectories are
+not corrected retrospectively by this change.
+
 ## Safety Caveat
 
 This is a benign synthetic sycophancy/deference experiment using arithmetic hints. It is not a harmful-content refusal, persuasion, or jailbreak experiment.
