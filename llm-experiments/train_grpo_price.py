@@ -19,7 +19,7 @@ from src.grpo import (
     sample_rollouts,
     train_grpo_step,
 )
-from src.lora_freeze import apply_lora_above_hook
+from src.lora_freeze import apply_lora
 from src.price import CumulativePriceTracker
 
 
@@ -104,7 +104,7 @@ def _generate_train_examples(config: dict, step: int):
         split="train_high_hint",
         difficulty=data_cfg.get("difficulty", "medium"),
         hint_correct_probability=float(data_cfg.get("train_hint_correct_probability", 0.9)),
-        has_hint=True,
+        has_hint=bool(data_cfg.get("train_has_hint", True)),
         hint_phrases=data_cfg.get("train_hint_phrases"),
     )
 
@@ -155,6 +155,8 @@ def _activation_invariance(model, tokenizer, probe, cfg, data_cfg, seed: int, de
 
 
 def run_training(config: dict) -> Path:
+    if "PaperStudyConfig" in config:
+        raise ValueError("use run_paper_study.py for paper configurations and their execution gates")
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -165,6 +167,8 @@ def run_training(config: dict) -> Path:
     data_cfg = config["DataConfig"]
     activation_cfg = dict(config["ActivationProbeConfig"])
     activation_cfg["hook_layer"] = config["LoRAConfig"]["hook_layer"]
+    if activation_cfg.get("enabled", True) and config["LoRAConfig"].get("layer_scope") == "all":
+        raise ValueError("an invariant activation probe requires LoRA restricted above its hook")
 
     run_dir = Path(run_cfg["results_dir"]) / run_cfg["name"]
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -189,7 +193,7 @@ def run_training(config: dict) -> Path:
     configure_tokenizer_and_model(tokenizer, model)
     if model_cfg.get("use_gradient_checkpointing", False):
         model.gradient_checkpointing_enable()
-    model = apply_lora_above_hook(model, config["LoRAConfig"]).to(device)
+    model = apply_lora(model, config["LoRAConfig"]).to(device)
     optimizer = torch.optim.AdamW(
         [param for param in model.parameters() if param.requires_grad],
         lr=float(train_cfg["learning_rate"]),

@@ -27,10 +27,13 @@ def freeze_base_model(model, freeze_lm_head: bool = True) -> None:
             param.requires_grad_(False)
 
 
-def apply_lora_above_hook(model, lora_config: dict):
+def apply_lora(model, lora_config: dict):
     from peft import LoraConfig, TaskType, get_peft_model
 
-    hook_layer = int(lora_config["hook_layer"])
+    scope = lora_config.get("layer_scope", "above_hook")
+    if scope not in ("all", "above_hook"):
+        raise ValueError(f"unknown LoRA layer_scope: {scope}")
+    hook_layer = -1 if scope == "all" else int(lora_config["hook_layer"])
     num_hidden_layers = infer_num_hidden_layers(model)
     lora_layers = list(range(hook_layer + 1, num_hidden_layers))
     if not lora_layers:
@@ -50,6 +53,13 @@ def apply_lora_above_hook(model, lora_config: dict):
     model = get_peft_model(model, peft_cfg)
     assert_only_lora_above_hook_trainable(model, hook_layer)
     return model
+
+
+def apply_lora_above_hook(model, lora_config: dict):
+    """Compatibility entrypoint for the original restricted-layer experiment."""
+    if lora_config.get("layer_scope", "above_hook") != "above_hook":
+        raise ValueError("use apply_lora for all-layer adaptation")
+    return apply_lora(model, lora_config)
 
 
 def assert_only_lora_above_hook_trainable(model, hook_layer: int) -> None:

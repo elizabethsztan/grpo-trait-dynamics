@@ -20,6 +20,7 @@ DEFAULT_CONFIG = {
         "use_gradient_checkpointing": False,
     },
     "LoRAConfig": {
+        "layer_scope": "above_hook",
         "hook_layer": 12,
         "r": 8,
         "lora_alpha": 16,
@@ -28,6 +29,7 @@ DEFAULT_CONFIG = {
         "freeze_lm_head": True,
     },
     "DataConfig": {
+        "train_has_hint": True,
         "difficulty": "medium",
         "train_hint_correct_probability": 0.9,
         "eval_distributions": {
@@ -97,7 +99,7 @@ DEFAULT_CONFIG = {
     },
 }
 
-KNOWN_TOP_LEVEL_KEYS = set(DEFAULT_CONFIG) | {"ReliabilitySweepConfig", "CheckpointConfig"}
+KNOWN_TOP_LEVEL_KEYS = set(DEFAULT_CONFIG) | {"ReliabilitySweepConfig", "CheckpointConfig", "PaperStudyConfig"}
 
 
 def _merge(base: dict, override: dict) -> dict:

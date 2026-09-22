@@ -64,6 +64,79 @@ compatibility. They must not be substituted for generated samples in an
 accounting run that suppresses EOS. Historical likelihoods and trajectories are
 not corrected retrospectively by this change.
 
+## Paper study collection pipeline
+
+`run_paper_study.py` separates training from measurement. The development
+configuration is `configs/qwen25_05b_sycophancy_paper.yaml`; its final measurement
+budget and paper execution flag remain subject to pilot review. The historical
+runner rejects this configuration so its older output behavior cannot bypass
+the study manifest and checkpoint collection.
+
+The following commands describe the pilot workflow after code review. Preparing
+a study creates data and run entries only; it does not load a model or train:
+
+```bash
+python run_paper_study.py prepare \
+  --config configs/qwen25_05b_sycophancy_paper.yaml \
+  --cohort pilot --output results/paper_pilots_v1
+python run_paper_study.py train --study results/paper_pilots_v1 \
+  --run-id hint_0.25_seed2026092291
+python run_paper_study.py measure --study results/paper_pilots_v1 \
+  --run-id hint_0.25_seed2026092291 --measurement-id n512
+python run_paper_study.py status --study results/paper_pilots_v1
+```
+
+The second pilot run ID is `hint_0.90_seed2026092292`. Model and tokenizer loading
+uses only locally cached files at the pinned revision. Training applies all-layer
+LoRA with the existing simplified objective, records every training response,
+and saves initial and per-update adapters. No measurement occurs during training.
+The no-hint condition uses the original no-hint prompt and correctness reward.
+
+`--cohort paper` prepares thirty entries (five seeds each at 10%, 25%, 50%, 75%,
+90%, and no-hint training). Training those entries is refused while
+`paper_execution_enabled` is false. Enable it only after the agreed pilot review
+and final configuration approval, in a newly prepared study. Do not edit the
+manifest of an existing trained study: training artifacts bind to its hash.
+
+The shared bank contains 2,048 matched problems, with wrong-hint, correct-hint,
+balanced-hint, and no-hint variants. Its even-sized prefixes remain exactly
+balanced in hint correctness for the balanced variant. The default collection
+uses the first 512 groups and two responses per group. After discussing pilot
+precision, a larger measurement can reuse the same saved policies:
+
+```bash
+python run_paper_study.py measure --study results/paper_pilots_v1 \
+  --run-id hint_0.25_seed2026092291 --measurement-id n1024 --prompts 1024
+```
+
+Changing the measurement ID alone performs a deterministic replay, not an
+independent replication. Increasing the prompt count retains the original sample
+prefix. Separate random streams distinguish direct evaluations from Price pools,
+and measurement restores the caller's Python, NumPy, and Torch random states.
+Source and successor likelihoods use the same prompt-group batch boundaries.
+Measurement refuses a changed weight dtype or generation configuration.
+
+Each attempt has a `status.json` recording completion or failure, timing, source
+hashes, commit, and package versions. Existing attempt directories are never
+overwritten or resumed. A process killed without cleanup may retain `running`
+status; that is not a completed attempt. Source pools are written before successor
+scoring so a failed transition retains the collected responses. Checkpoint and
+bank hashes are verified before replay.
+
+Raw `observed_*.jsonl.gz` and `source_*.jsonl.gz` files include full prompts,
+response tokens/text, traits, stopping metadata, group/response indices, source
+checkpoint identity, and old likelihoods. Paired `price_*.jsonl.gz` files add the
+successor likelihood, successor checkpoint identity, and source-pool hash.
+`files.json` inventories the completed measurement files and their checksums.
+`config.json` and `runtime.json` record requested and resolved settings.
+
+`metrics.jsonl` uses checkpoint numbers: step zero has no Price increment; step
+one contains the 0-to-1 increment. Observed evaluations occur at 0, 5, ..., 100
+under the default configuration; missing evaluations remain absent. Always
+compare cumulative covariance and observed drift at the same checkpoint.
+Bootstrap uncertainty, reporting, and laptop export are a subsequent milestone;
+the collection command does not perform fitted modeling or launch other runs.
+
 ## Safety Caveat
 
 This is a benign synthetic sycophancy/deference experiment using arithmetic hints. It is not a harmful-content refusal, persuasion, or jailbreak experiment.
