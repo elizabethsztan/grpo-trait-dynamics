@@ -85,7 +85,7 @@ def _cum_series(rows, fid, N, pred_of):
 # and "cov" otherwise -- so the frozen-layer headline figures are unchanged.
 _ESTIMATORS = {
     "cov": (lambda r: r.get("cov", r["price"]), "cov"),
-    "sn":  (lambda r: r.get("price_sn", r.get("cov", r["price"])), "self-norm"),
+    "sn":  (lambda r: r.get("price_sn", r.get("cov", r["price"])), "selection"),
 }
 
 
@@ -226,7 +226,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
         a1.plot([-lim, lim], [-lim, lim], ls="--", lw=0.8, color="grey", zorder=0)
         a1.axhline(0, lw=0.5, color="grey", zorder=0); a1.axvline(0, lw=0.5, color="grey", zorder=0)
         a1.scatter(obs, sel, s=22, facecolors="none", edgecolors=colors[1], linewidths=1.0,
-                   label=f"selection only ({est_label})", zorder=2)
+                   label=f"{est_label} only", zorder=2)
         a1.scatter(obs, full, s=22, color=colors[0], alpha=0.8,
                    label="selection + transmission", zorder=3)
         if obs.std() > 0:
@@ -244,7 +244,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
         share = float(np.abs(trn).mean() / (np.abs(obs).mean() + 1e-12))
         a2.set_title(f"transmission vs selection\nmean |trans| / mean |ΔT| = {share:.2f}",
                      fontsize=10.5)
-        a2.set_xlabel(f"selection  ({est_label})"); a2.set_ylabel("transmission  E[ω·Δs]")
+        a2.set_xlabel(f"{est_label}  cov(ω, s)"); a2.set_ylabel("transmission  E[ω·Δs]")
         a2.set_xlim(-m, m); a2.set_ylim(-m, m); a2.set_aspect("equal")
         plt.tight_layout()
         for ext in ("png", "pdf"):
@@ -270,7 +270,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
             ax.plot(steps, obs, color=colors[0], lw=2.1, marker="o", ms=3, label="observed ΔT", zorder=4)
             ax.plot(steps, cov + tr, color=colors[2], ls="--", lw=1.6, marker="s", ms=2.5,
                     label=f"{est_label} + trans", zorder=3)
-            ax.plot(steps, cov, color=colors[1], ls=":", lw=1.6, label=f"{est_label} (selection)", zorder=2)
+            ax.plot(steps, cov, color=colors[1], ls=":", lw=1.6, label=f"{est_label}", zorder=2)
             ax.plot(steps, tr, color=colors[3], ls="-.", lw=1.4, label="transmission", zorder=2)
             ax.set_title(_title(fid, fr), fontsize=9)
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
