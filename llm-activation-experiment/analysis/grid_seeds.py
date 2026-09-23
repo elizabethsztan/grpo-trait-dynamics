@@ -22,6 +22,9 @@ def main():
     ap.add_argument("--runs", nargs="+", required=True, help="run-dir names, one per seed")
     ap.add_argument("--suffix", default="", help="'' -> price_eval.jsonl, '_svamp' -> price_eval_svamp.jsonl")
     ap.add_argument("--drop", default="", help="comma-separated feature ids to exclude")
+    ap.add_argument("--estimator", default=None, choices=["cov", "sn"],
+                    help="Price estimator to draw: raw cov or self-normalised. Default: sn for "
+                         "all-layers runs (transmission logged, degenerate omega), cov otherwise.")
     ap.add_argument("--out", default=None, help="output dir (default <results>/plots_seeds)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -35,7 +38,7 @@ def main():
     out = Path(args.out) if args.out else root / "plots_seeds"
     stem = f"grid_price_seeds{args.suffix}"
     LOGGER.info(f"{len(paths)} seeds -> {out / stem}" + (f"  (dropping {drop})" if drop else ""))
-    plot_grid_seeds(paths, out, drop=drop, stem=stem)
+    plot_grid_seeds(paths, out, drop=drop, stem=stem, estimator=args.estimator)
 
 
 if __name__ == "__main__":

@@ -64,21 +64,40 @@ def _grid_layout(rows, features_path):
     return labels, slots, cols, title
 
 
-def _cum_series(rows, fid, N):
-    """(steps, cumulative observed ΔT, cumulative Price cov) for one feature at sample size N."""
+def _cum_series(rows, fid, N, pred_of):
+    """(steps, cumulative observed ΔT, cumulative Price prediction) for one feature at N."""
     fr = sorted((r for r in rows if r["feature_id"] == fid and r["N"] == N), key=lambda r: r["step"])
     steps = np.array([r["step"] for r in fr])
     obs = np.cumsum([r["direct_drift"] for r in fr])
-    pred = np.cumsum([_pred_of(r) for r in fr])
+    pred = np.cumsum([pred_of(r) for r in fr])
     return steps, obs, pred, fr
 
 
-# Prediction = the omega_bar-corrected covariance form (Adil-style); fall back to
-# the naive "price" for old runs that predate the cov field.
-_pred_of = lambda r: r.get("cov", r["price"])
+# Which sampled Price estimator to draw as "predicted ΔT":
+#   "cov": raw omega_bar-corrected covariance  E[ωs] − E[ω]E[s]   (Adil-style)
+#   "sn" : Hajek self-normalised  Σωs/Σω − E[s]  ==  cov / omega_bar
+# The raw cov scales with the SAMPLE mean of ω, so it is only trustworthy when omega_bar≈1.
+# Frozen-layer runs sit there (omega_bar≈1.05, ESS>400). All-layers LoRA moves the policy so
+# far in its first steps that ω degenerates (ESS 6-12 of 512 at the 0->3 transition) and the
+# sample omega_bar is essentially random (0.94 / 0.57 / 0.26 across three seeds), shrinking
+# cov by that factor while the self-normalised form stays put. Hence estimator=None (auto)
+# picks "sn" whenever the run logged the transmission term (i.e. it is an all-layers run)
+# and "cov" otherwise -- so the frozen-layer headline figures are unchanged.
+_ESTIMATORS = {
+    "cov": (lambda r: r.get("cov", r["price"]), "cov"),
+    "sn":  (lambda r: r.get("price_sn", r.get("cov", r["price"])), "self-norm"),
+}
 
 
-def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds"):
+def _resolve_estimator(estimator, rows):
+    if estimator is None:
+        estimator = "sn" if any("transmission" in r for r in rows) else "cov"
+    if estimator not in _ESTIMATORS:
+        raise ValueError(f"estimator must be one of {sorted(_ESTIMATORS)}, got {estimator!r}")
+    return (estimator, *_ESTIMATORS[estimator])
+
+
+def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds", estimator=None):
     """grid_price across GRPO seeds: each seed's cumulative curve drawn light, the
     across-seed mean in bold. Features/steps must match across seeds (same features.json,
     same Phase-3 schedule); features.json and panel order are taken from the FIRST run."""
@@ -92,6 +111,7 @@ def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds"):
     if not per_seed or not per_seed[0]:
         return
     N_max = min(max(r["N"] for r in rows) for rows in per_seed)
+    _, pred_of, est_label = _resolve_estimator(estimator, per_seed[0])
     labels, slots, cols, title = _grid_layout(per_seed[0], jsonl_paths[0].parent / "features.json")
     rows_g = len(slots) // cols
     colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
@@ -101,7 +121,7 @@ def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds"):
         if fid is None:
             ax.set_visible(False)
             continue
-        series = [_cum_series(rows, fid, N_max) for rows in per_seed]
+        series = [_cum_series(rows, fid, N_max, pred_of) for rows in per_seed]
         steps = series[0][0]
         if any(len(s[0]) != len(steps) or not np.array_equal(s[0], steps) for s in series):
             raise ValueError(f"feature {fid}: step schedules differ across seeds")
@@ -110,7 +130,7 @@ def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds"):
             ax.plot(steps, o, color=colors[0], lw=0.8, alpha=0.3)
             ax.plot(steps, pr, color=colors[1], lw=0.8, alpha=0.3)
         ax.plot(steps, obs.mean(0), color=colors[0], lw=2, marker="o", ms=3, label="observed ΔT")
-        ax.plot(steps, pred.mean(0), color=colors[1], lw=2, marker="s", ms=3, label="Price (cov)")
+        ax.plot(steps, pred.mean(0), color=colors[1], lw=2, marker="s", ms=3, label=f"Price ({est_label})")
         ax.set_title(title(fid, series[0][3]), fontsize=9)
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     axes.flat[0].legend(frameon=False, fontsize=8,
@@ -122,7 +142,7 @@ def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds"):
     plt.close(fig)
 
 
-def plot_from_jsonl(jsonl_path, out_dir, drop=None):
+def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
     out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     rows = _load(jsonl_path)
     # drop: feature ids to exclude EVERYWHERE -- grid panels and the pooled scatter/decomp
@@ -135,7 +155,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None):
     N_max = max(r["N"] for r in rows)
     present = {r["feature_id"] for r in rows}
     colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
-    pred_of = _pred_of
+    _, pred_of, est_label = _resolve_estimator(estimator, rows)
 
     labels, slots, cols, _title = _grid_layout(rows, Path(jsonl_path).parent / "features.json")
     feats = [f for f in slots if f is not None]
@@ -154,7 +174,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None):
         obs = np.cumsum([r["direct_drift"] for r in fr])
         pred = np.cumsum([pred_of(r) for r in fr])
         ax.plot(steps, obs, color=colors[0], marker="o", ms=3, label="observed ΔT")
-        ax.plot(steps, pred, color=colors[1], marker="s", ms=3, label="Price (cov)")
+        ax.plot(steps, pred, color=colors[1], marker="s", ms=3, label=f"Price ({est_label})")
         ax.set_title(_title(fid, fr), fontsize=9)
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     axes.flat[0].legend(frameon=False, fontsize=8)
@@ -181,7 +201,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None):
     if obs_t.std() > 0:
         r_ = np.corrcoef(obs_t, prd_t)[0, 1]; sl = np.polyfit(obs_t, prd_t, 1)[0]
         ax.set_title(f"predicted vs observed ΔT (N={N_max})\ncorr={r_:.2f}  slope={sl:.2f}", fontsize=11)
-    ax.set_xlabel("observed ΔT (direct)"); ax.set_ylabel("predicted ΔT (Price, cov)")
+    ax.set_xlabel("observed ΔT (direct)"); ax.set_ylabel(f"predicted ΔT (Price, {est_label})")
     ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim); ax.set_aspect("equal")
     ax.legend(frameon=False, fontsize=9, loc="upper left")
     plt.tight_layout()
@@ -196,7 +216,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None):
     if any("transmission" in r for r in rN):
         sig = [r for r in rN if not r["is_control"]]
         obs = np.array([r["direct_drift"] for r in sig])
-        sel = np.array([pred_of(r) for r in sig])                       # cov = selection
+        sel = np.array([pred_of(r) for r in sig])                       # selection term
         trn = np.array([r["transmission"] for r in sig])
         full = sel + trn                                                # full prediction
         fig, (a1, a2) = plt.subplots(1, 2, figsize=(9.2, 4.5))
@@ -206,13 +226,13 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None):
         a1.plot([-lim, lim], [-lim, lim], ls="--", lw=0.8, color="grey", zorder=0)
         a1.axhline(0, lw=0.5, color="grey", zorder=0); a1.axvline(0, lw=0.5, color="grey", zorder=0)
         a1.scatter(obs, sel, s=22, facecolors="none", edgecolors=colors[1], linewidths=1.0,
-                   label="selection only (cov)", zorder=2)
+                   label=f"selection only ({est_label})", zorder=2)
         a1.scatter(obs, full, s=22, color=colors[0], alpha=0.8,
                    label="selection + transmission", zorder=3)
         if obs.std() > 0:
             r_sel = np.corrcoef(obs, sel)[0, 1]; r_full = np.corrcoef(obs, full)[0, 1]
             a1.set_title(f"predicted vs observed ΔT (N={N_max})\n"
-                         f"corr: cov={r_sel:.2f} → cov+trans={r_full:.2f}", fontsize=10.5)
+                         f"corr: {est_label}={r_sel:.2f} → {est_label}+trans={r_full:.2f}", fontsize=10.5)
         a1.set_xlabel("observed ΔT (direct)"); a1.set_ylabel("predicted ΔT")
         a1.set_xlim(-lim, lim); a1.set_ylim(-lim, lim); a1.set_aspect("equal")
         a1.legend(frameon=False, fontsize=8.5, loc="upper left")
@@ -224,7 +244,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None):
         share = float(np.abs(trn).mean() / (np.abs(obs).mean() + 1e-12))
         a2.set_title(f"transmission vs selection\nmean |trans| / mean |ΔT| = {share:.2f}",
                      fontsize=10.5)
-        a2.set_xlabel("selection  cov(ω, s)"); a2.set_ylabel("transmission  E[ω·Δs]")
+        a2.set_xlabel(f"selection  ({est_label})"); a2.set_ylabel("transmission  E[ω·Δs]")
         a2.set_xlim(-m, m); a2.set_ylim(-m, m); a2.set_aspect("equal")
         plt.tight_layout()
         for ext in ("png", "pdf"):
@@ -244,13 +264,13 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None):
             if fid is None:
                 ax.set_visible(False)
                 continue
-            steps, obs, cov, fr = _cum_series(rows, fid, N_max)
+            steps, obs, cov, fr = _cum_series(rows, fid, N_max, pred_of)
             tr = np.cumsum([r.get("transmission", 0.0) for r in fr])
             ax.axhline(0, lw=0.5, color="grey", zorder=0)
             ax.plot(steps, obs, color=colors[0], lw=2.1, marker="o", ms=3, label="observed ΔT", zorder=4)
             ax.plot(steps, cov + tr, color=colors[2], ls="--", lw=1.6, marker="s", ms=2.5,
-                    label="cov + trans", zorder=3)
-            ax.plot(steps, cov, color=colors[1], ls=":", lw=1.6, label="cov (selection)", zorder=2)
+                    label=f"{est_label} + trans", zorder=3)
+            ax.plot(steps, cov, color=colors[1], ls=":", lw=1.6, label=f"{est_label} (selection)", zorder=2)
             ax.plot(steps, tr, color=colors[3], ls="-.", lw=1.4, label="transmission", zorder=2)
             ax.set_title(_title(fid, fr), fontsize=9)
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))

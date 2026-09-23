@@ -23,6 +23,9 @@ def main():
     # '_svamp' -> price_eval_svamp.jsonl / plots_svamp/.
     ap.add_argument("--suffix", default="")
     ap.add_argument("--drop", default="", help="comma-separated feature ids to exclude")
+    ap.add_argument("--estimator", default=None, choices=["cov", "sn"],
+                    help="Price estimator to draw: raw cov or self-normalised. Default: sn for "
+                         "all-layers runs (transmission logged, degenerate omega), cov otherwise.")
     ap.add_argument("--out", default=None, help="output dir (default <run>/plots<suffix>)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -35,7 +38,7 @@ def main():
     out = Path(args.out) if args.out else run / f"plots{args.suffix}"
 
     LOGGER.info(f"replotting {jsonl} -> {out}" + (f"  (dropping {drop})" if drop else ""))
-    plot_from_jsonl(jsonl, out, drop=drop)
+    plot_from_jsonl(jsonl, out, drop=drop, estimator=args.estimator)
     LOGGER.info(f"wrote {sorted(p.name for p in out.glob('*.p*'))}")
 
 
