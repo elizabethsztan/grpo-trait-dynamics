@@ -231,6 +231,36 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None):
             plt.savefig(out_dir / f"price_decomp.{ext}", dpi=150)
         plt.close(fig)
 
+    # grid_decomp: 4-line cumulative decomposition per feature, only when the transmission
+    # term was logged (all-layers runs). Shows observed ΔT, the full prediction cov+trans
+    # (should overlay observed), and the two components cov (selection) and trans separately
+    # -- so features where transmission dominates (cov alone misses) are visible. Per-panel
+    # autoscale (NOT sharey) so small-net-drift features aren't squashed by a big one sharing
+    # the row; controls will therefore autoscale to their own noise (read the y-axis scale).
+    # (Ported from the reconcile-llm branch, commit 9ae14e2, which never reached main.)
+    if any("transmission" in r for r in rN):
+        fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g), squeeze=False)
+        for ax, fid in zip(axes.flat, slots):
+            if fid is None:
+                ax.set_visible(False)
+                continue
+            steps, obs, cov, fr = _cum_series(rows, fid, N_max)
+            tr = np.cumsum([r.get("transmission", 0.0) for r in fr])
+            ax.axhline(0, lw=0.5, color="grey", zorder=0)
+            ax.plot(steps, obs, color=colors[0], lw=2.1, marker="o", ms=3, label="observed ΔT", zorder=4)
+            ax.plot(steps, cov + tr, color=colors[2], ls="--", lw=1.6, marker="s", ms=2.5,
+                    label="cov + trans", zorder=3)
+            ax.plot(steps, cov, color=colors[1], ls=":", lw=1.6, label="cov (selection)", zorder=2)
+            ax.plot(steps, tr, color=colors[3], ls="-.", lw=1.4, label="transmission", zorder=2)
+            ax.set_title(_title(fid, fr), fontsize=9)
+            ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        axes.flat[0].legend(frameon=False, fontsize=7)
+        fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
+        plt.tight_layout()
+        for ext in ("png", "pdf"):
+            plt.savefig(out_dir / f"grid_decomp.{ext}", dpi=150)
+        plt.close(fig)
+
     # (N-convergence is shown properly by experiments/bands_from_pool.py -- bootstrap bands
     # over n=16..512 with the N=1024 reference line. A per-N line here is degenerate when the
     # config sweeps a single price budget, so it's intentionally not plotted.)
