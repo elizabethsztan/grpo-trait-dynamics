@@ -209,7 +209,7 @@ def train_run(study_dir, run_id):
     return directory
 
 
-def collect_pool(model, tokenizer, device, config, examples, completions, path, *, seed, run_id, kind, distribution, source):
+def collect_pool(model, tokenizer, device, config, examples, completions, path, *, seed, run_id, kind, distribution, source, record_extra=None):
     samples = []
     with isolated_rng(seed), gzip.open(path, "xt") as raw:
         batch_size = config.get("MeasurementConfig", {}).get("question_batch_size", 1)
@@ -218,10 +218,13 @@ def collect_pool(model, tokenizer, device, config, examples, completions, path, 
                                     capture_logprobs=True, question_batch_size=batch_size)
             group = [replace(s, pre_logprob=s.generated.sampling_logprob) for s in group]
             for sample in group:
-                write_row(raw, sample_record(
+                row = sample_record(
                     sample, len(samples), completions, run_id=run_id, distribution=distribution,
                     kind=kind, source=source,
-                ))
+                )
+                if record_extra is not None:
+                    row.update(record_extra(sample))
+                write_row(raw, row)
                 samples.append(sample)
             raw.flush()
     return samples
