@@ -25,6 +25,9 @@ plt.rcParams.update({
     "ytick.labelsize": 18,
     "axes.spines.top": False,
     "axes.spines.right": False,
+    # light grid, as in the paper figures
+    "axes.grid": True,
+    "grid.alpha": 0.18,
 })
 
 REWARD_BLOCK = {

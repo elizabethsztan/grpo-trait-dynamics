@@ -25,6 +25,9 @@ plt.rcParams.update({
     "ytick.labelsize": 18,
     "axes.spines.top": False,
     "axes.spines.right": False,
+    # light grid, as in the paper figures
+    "axes.grid": True,
+    "grid.alpha": 0.18,
 })
 
 
@@ -48,10 +51,10 @@ def plot_grid(gammas, ps, results, colors, output_dir, stem):
             ax.fill_between(steps_axis, trait_mean - trait_sem, trait_mean + trait_sem,
                             alpha=0.25, color=colors[0], zorder=1)
             ax.fill_between(steps_axis, reward_mean - reward_sem, reward_mean + reward_sem,
-                            alpha=0.25, color=colors[1], zorder=1)
+                            alpha=0.25, color=colors[2], zorder=1)
             ax.plot(steps_axis, trait_mean, color=colors[0], lw=1.2, zorder=2,
                     label=r"Trait $T_t$" if i == 0 and j == 0 else None)
-            ax.plot(steps_axis, reward_mean, color=colors[1], lw=1.2, zorder=2,
+            ax.plot(steps_axis, reward_mean, color=colors[2], lw=1.2, zorder=2,
                     label=r"Reward $R_t$" if i == 0 and j == 0 else None)
             ax.axhline(trait_mean[0], color="grey", ls="--", lw=0.8, zorder=0)
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
@@ -61,12 +64,12 @@ def plot_grid(gammas, ps, results, colors, output_dir, stem):
                 ax.set_title(rf"$\gamma$ = {gamma}")
             if i == 0:
                 ax.set_ylabel(rf"$p$ = {p}")
-            if j == n_rows - 1:
-                ax.set_xlabel(r"step $t$")
 
     handles, labels = axes[0][0].get_legend_handles_labels()
-    fig.legend(handles, labels, frameon=False, loc="upper center", ncol=2)
-    fig.tight_layout(rect=(0, 0, 1, 0.91))
+    fig.tight_layout(rect=(0, 0, 1, 1))
+    fig.subplots_adjust(bottom=0.16)
+    fig.supxlabel(r"Model Training Step $t$", y=0.075)
+    fig.legend(handles, labels, frameon=False, loc="lower center", ncol=2, bbox_to_anchor=(0.5, 0.0))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)
@@ -95,21 +98,23 @@ def plot_combined_grid(gammas, ps, results, colors, output_dir, stem):
             pred = t0 + res["predicted_cum_mean"]
             pred_sem = res["predicted_cum_sem"]
 
-            pred_color = "#08306b"  # navy: a darker shade of the trait blue (this predicts the trait)
+            # Same palette as the paper figures: observed trait blue, Price prediction orange
+            # drawn on top, reward in a third colour.
+            trait_color, pred_color, reward_color = colors[0], colors[1], colors[2]
 
             ax.fill_between(steps_axis, trait_mean - trait_sem, trait_mean + trait_sem,
-                            alpha=0.25, color=colors[0], zorder=1)
+                            alpha=0.25, color=trait_color, zorder=1)
             ax.fill_between(steps_axis, reward_mean - reward_sem, reward_mean + reward_sem,
-                            alpha=0.25, color=colors[1], zorder=1)
+                            alpha=0.25, color=reward_color, zorder=1)
             ax.fill_between(steps_axis, pred - pred_sem, pred + pred_sem,
                             alpha=0.2, color=pred_color, zorder=1)
-            # Trait solid drawn thick underneath; navy prediction dashed thinner on top,
-            # so the trait shows between the dashes -- the overlap is the point of the figure.
-            ax.plot(steps_axis, trait_mean, color=colors[0], lw=1.8, zorder=2,
+            # Trait thick and opaque underneath; the thinner orange prediction on top so the
+            # blue shows at its edges -- the overlap is the point of the figure.
+            ax.plot(steps_axis, trait_mean, color=trait_color, lw=3.0, zorder=2,
                     label=r"Trait $T_t$" if i == 0 and j == 0 else None)
-            ax.plot(steps_axis, reward_mean, color=colors[1], lw=1.5, zorder=2,
+            ax.plot(steps_axis, reward_mean, color=reward_color, lw=1.8, zorder=2,
                     label=r"Reward $R_t$" if i == 0 and j == 0 else None)
-            ax.plot(steps_axis, pred, color=pred_color, lw=1.1, ls="--", zorder=3,
+            ax.plot(steps_axis, pred, color=pred_color, lw=1.5, zorder=3,
                     label=r"$T_0 + \sum \mathrm{Cov}(\omega, s)$" if i == 0 and j == 0 else None)
             ax.axhline(trait_mean[0], color="grey", ls="--", lw=0.8, zorder=0)
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
@@ -119,13 +124,13 @@ def plot_combined_grid(gammas, ps, results, colors, output_dir, stem):
                 ax.set_title(rf"$\gamma$ = {gamma}")
             if i == 0:
                 ax.set_ylabel(rf"$p$ = {p}")
-            if j == n_rows - 1:
-                ax.set_xlabel(r"step $t$")
 
-    fig.supylabel(r"Expected trait / reward under $\pi_t$")
+    fig.supylabel(r"Expected Trait / Reward under $\pi_t$")
     handles, labels = axes[0][0].get_legend_handles_labels()
-    fig.legend(handles, labels, frameon=False, loc="upper center", ncol=3)
-    fig.tight_layout(rect=(0.02, 0, 1, 0.91))
+    fig.tight_layout(rect=(0.02, 0, 1, 1))
+    fig.subplots_adjust(bottom=0.16)
+    fig.supxlabel(r"Model Training Step $t$", y=0.075)
+    fig.legend(handles, labels, frameon=False, loc="lower center", ncol=3, bbox_to_anchor=(0.5, 0.0))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)
@@ -162,12 +167,12 @@ def plot_price_grid_curves(gammas, ps, results, colors, output_dir, stem, pred_k
                 ax.set_title(rf"$\gamma$ = {gamma}")
             if i == 0:
                 ax.set_ylabel(rf"$p$ = {p}")
-            if j == n_rows - 1:
-                ax.set_xlabel(r"step $t$")
 
     handles, labels = axes[0][0].get_legend_handles_labels()
-    fig.legend(handles, labels, frameon=False, loc="upper center", ncol=2)
-    fig.tight_layout(rect=(0, 0, 1, 0.91))
+    fig.tight_layout(rect=(0, 0, 1, 1))
+    fig.subplots_adjust(bottom=0.16)
+    fig.supxlabel(r"Model Training Step $t$", y=0.075)
+    fig.legend(handles, labels, frameon=False, loc="lower center", ncol=2, bbox_to_anchor=(0.5, 0.0))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)

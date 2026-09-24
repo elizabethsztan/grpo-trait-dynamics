@@ -134,8 +134,8 @@ def _draw_seed_panel(ax, per_seed, fid, N_max, pred_of, est_label, colors, title
     for o, pr in zip(obs, pred):
         ax.plot(steps, o, color=colors[0], lw=0.8, alpha=0.3)
         ax.plot(steps, pr, color=colors[1], lw=0.8, alpha=0.3)
-    ax.plot(steps, obs.mean(0), color=colors[0], lw=2, marker="o", ms=3, label="observed ΔT")
-    ax.plot(steps, pred.mean(0), color=colors[1], lw=2, marker="s", ms=3, label=f"Price ({est_label})")
+    ax.plot(steps, obs.mean(0), color=colors[0], lw=2, marker="o", ms=3, label=r"Observed $\Delta T$")
+    ax.plot(steps, pred.mean(0), color=colors[1], lw=2, marker="s", ms=3, label=f"Price({est_label.capitalize()})")
     ax.set_title(title(fid, series[0][3]))
     ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     return float(min(obs.min(), pred.min())), float(max(obs.max(), pred.max()))
@@ -210,14 +210,20 @@ def plot_row_seeds(jsonl_paths, out_dir, drop=None, stem="row_price_seeds", esti
             if group in ROW_TITLES:
                 ax.set_title(ROW_TITLES[group])
             ax.axhline(0, color="grey", lw=0.6, zorder=0)
+            # sparser ticks than the diagnostic grids: every 6 steps on x, ~4 bins on y
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(6))
         if same_yspan:
             _equalise_yspan(list(axes.flat), ranges)
-        axes.flat[0].set_ylabel("cumulative trait change")
-        axes.flat[0].legend(frameon=False, title=f"bold = mean of {len(per_seed)} seeds")
+        for ax in axes.flat:
+            ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+        axes.flat[0].set_ylabel("Cumulative Trait Change")
         plt.tight_layout()
-        # shared x label, pulled up close to the tick labels
-        fig.supxlabel("GRPO step t", y=0.01)
-        fig.subplots_adjust(bottom=0.2)
+        # shared x label above a figure-level legend along the bottom
+        fig.subplots_adjust(bottom=0.31)
+        fig.supxlabel("GRPO step $t$", y=0.15)
+        handles, labels_ = axes.flat[0].get_legend_handles_labels()
+        fig.legend(handles, labels_, loc="lower center", ncol=2, frameon=False,
+                   bbox_to_anchor=(0.5, 0.0))
         for ext in ("png", "pdf"):
             plt.savefig(out_dir / f"{stem}.{ext}", dpi=150)
         plt.close(fig)
