@@ -25,8 +25,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 plt.rcParams.update({
-    "font.family": "serif", "font.size": 12, "axes.labelsize": 13,
-    "legend.fontsize": 10, "xtick.labelsize": 11, "ytick.labelsize": 11,
+    # Match Adil's figures: matplotlib default sans-serif (DejaVu Sans), base size 10,
+    # all other text sizes at their defaults relative to font.size.
+    "font.family": "sans-serif", "font.size": 10,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -114,7 +115,7 @@ def main():
         ax.plot(xR, cR, color="tab:orange", ls=":", lw=1.8 if small else 2.2,
                 label=f"cov ({args.ref_label}, cross-dist)  [Q2]")
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-        ax.set_title(f"feat {fid}  {labels.get(fid,'')}", fontsize=9 if small else 11)
+        ax.set_title(f"feat {fid}  {labels.get(fid,'')}" if small else 11)
 
     print(f"{'feat':>6}  {'label':16}  {'Q1 corr':>8}  {'Q2 corr':>8}")
     for fid in feats:
@@ -144,7 +145,7 @@ def main():
         _draw(ax, fid, _series(fid), small=True)
     for ax in axes.flat[len(feats):]:
         ax.set_visible(False)
-    axes.flat[0].legend(frameon=False, fontsize=7)
+    axes.flat[0].legend(frameon=False)
     fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
     plt.tight_layout()
     for ext in ("png", "pdf"):

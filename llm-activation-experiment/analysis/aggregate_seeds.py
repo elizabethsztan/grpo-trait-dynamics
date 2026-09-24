@@ -20,8 +20,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 plt.rcParams.update({
-    "font.family": "serif", "font.size": 12, "axes.labelsize": 13,
-    "legend.fontsize": 10, "xtick.labelsize": 11, "ytick.labelsize": 11,
+    # Match Adil's figures: matplotlib default sans-serif (DejaVu Sans), base size 10,
+    # all other text sizes at their defaults relative to font.size.
+    "font.family": "sans-serif", "font.size": 10,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -105,12 +106,12 @@ def main():
     N = next(iter(seeds.values()))["N"]
     ax.set_title(f"predicted vs observed ΔT  (N={N}, {len(seeds)} seeds)\n"
                  f"corr = {corrs.mean():.3f} ± {corrs.std(ddof=1):.3f}    "
-                 f"slope = {slopes.mean():.3f} ± {slopes.std(ddof=1):.3f}", fontsize=10.5)
+                 f"slope = {slopes.mean():.3f} ± {slopes.std(ddof=1):.3f}")
     ax.set_xlabel("observed ΔT (direct)"); ax.set_ylabel("predicted ΔT (Price, cov)")
     ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim); ax.set_aspect("equal")
-    seed_leg = ax.legend(frameon=False, fontsize=8.5, loc="upper left")
+    seed_leg = ax.legend(frameon=False, loc="upper left")
     ax.add_artist(seed_leg)
-    ax.legend(handles=shape_leg, frameon=False, fontsize=8.5, loc="lower right")
+    ax.legend(handles=shape_leg, frameon=False, loc="lower right")
     plt.tight_layout()
 
     out_dir = Path(args.out) if args.out else root / "plots_seeds"

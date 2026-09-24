@@ -20,8 +20,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 plt.rcParams.update({
-    "font.family": "serif", "font.size": 12, "axes.labelsize": 13,
-    "legend.fontsize": 10, "xtick.labelsize": 11, "ytick.labelsize": 11,
+    # Match Adil's figures: matplotlib default sans-serif (DejaVu Sans), base size 10,
+    # all other text sizes at their defaults relative to font.size.
+    "font.family": "sans-serif", "font.size": 10,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -98,7 +99,7 @@ def main():
                 marker="o", ms=3, label=f"cov ({args.split_label}, cross-split)")
         ax.set_xlabel("GRPO step t"); ax.set_ylabel("cumulative trait change")
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-        ax.set_title(f"feat {fid}  {labels.get(fid, '')}", fontsize=11)
+        ax.set_title(f"feat {fid}  {labels.get(fid, '')}")
         ax.legend(frameon=False)
         plt.tight_layout()
         stem = band_dir / f"feat_{fid}"

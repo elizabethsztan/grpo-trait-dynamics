@@ -7,10 +7,24 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 plt.rcParams.update({
-    "font.family": "serif", "font.size": 12, "axes.labelsize": 13,
-    "legend.fontsize": 11, "xtick.labelsize": 11, "ytick.labelsize": 11,
+    # Match Adil's figures: matplotlib default sans-serif (DejaVu Sans), base size 10,
+    # all other text sizes at their defaults relative to font.size.
+    "font.family": "sans-serif", "font.size": 10,
     "axes.spines.top": False, "axes.spines.right": False,
 })
+
+# Larger type for the paper headline row (plot_row_seeds); the diagnostic grids keep the
+# compact defaults above.
+# Row-panel headers by feature group: sign of the feature's initial reward correlation.
+ROW_TITLES = {"+": r"$\rho_{t=0} > 0$", "−": r"$\rho_{t=0} < 0$", "ctrl": r"$\rho_{t=0} \approx 0$"}
+
+ROW_FONTS = {
+    "font.size": 15, "axes.titlesize": 17, "axes.labelsize": 17, "figure.labelsize": 17,
+    "legend.fontsize": 15, "legend.title_fontsize": 15,
+    "xtick.labelsize": 14, "ytick.labelsize": 14,
+    # light grid, as in Adil's figures
+    "axes.grid": True, "grid.alpha": 0.18,
+}
 
 
 def _load(jsonl_path):
@@ -97,22 +111,55 @@ def _resolve_estimator(estimator, rows):
     return (estimator, *_ESTIMATORS[estimator])
 
 
+def _load_seeds(jsonl_paths, drop, estimator):
+    """Shared loader for the across-seed figures: per-seed rows, common N, estimator, layout."""
+    jsonl_paths = [Path(p) for p in jsonl_paths]
+    drop = set(drop or ())
+    per_seed = [[r for r in _load(p) if r["feature_id"] not in drop] for p in jsonl_paths]
+    if not per_seed or not per_seed[0]:
+        return None
+    N_max = min(max(r["N"] for r in rows) for rows in per_seed)
+    _, pred_of, est_label = _resolve_estimator(estimator, per_seed[0])
+    labels, slots, cols, title = _grid_layout(per_seed[0], jsonl_paths[0].parent / "features.json")
+    return per_seed, N_max, pred_of, est_label, slots, cols, title, labels
+
+
+def _draw_seed_panel(ax, per_seed, fid, N_max, pred_of, est_label, colors, title):
+    """One feature: every seed light, the across-seed mean bold."""
+    series = [_cum_series(rows, fid, N_max, pred_of) for rows in per_seed]
+    steps = series[0][0]
+    if any(len(s[0]) != len(steps) or not np.array_equal(s[0], steps) for s in series):
+        raise ValueError(f"feature {fid}: step schedules differ across seeds")
+    obs = np.stack([s[1] for s in series]); pred = np.stack([s[2] for s in series])
+    for o, pr in zip(obs, pred):
+        ax.plot(steps, o, color=colors[0], lw=0.8, alpha=0.3)
+        ax.plot(steps, pr, color=colors[1], lw=0.8, alpha=0.3)
+    ax.plot(steps, obs.mean(0), color=colors[0], lw=2, marker="o", ms=3, label="observed ΔT")
+    ax.plot(steps, pred.mean(0), color=colors[1], lw=2, marker="s", ms=3, label=f"Price ({est_label})")
+    ax.set_title(title(fid, series[0][3]))
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    return float(min(obs.min(), pred.min())), float(max(obs.max(), pred.max()))
+
+
+def _equalise_yspan(axes, ranges, pad=0.05):
+    """Give every panel the same y-EXTENT (so slopes are comparable across panels) while
+    letting each panel sit wherever its own data lie. Each window always contains 0."""
+    los = [min(0.0, lo) for lo, _ in ranges]; his = [max(0.0, hi) for _, hi in ranges]
+    span = max(h - l for l, h in zip(los, his)) * (1 + 2 * pad)
+    for ax, lo, hi in zip(axes, los, his):
+        extra = (span - (hi - lo)) / 2
+        ax.set_ylim(lo - extra, hi + extra)
+
+
 def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds", estimator=None):
     """grid_price across GRPO seeds: each seed's cumulative curve drawn light, the
     across-seed mean in bold. Features/steps must match across seeds (same features.json,
     same Phase-3 schedule); features.json and panel order are taken from the FIRST run."""
     out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
-    jsonl_paths = [Path(p) for p in jsonl_paths]
-    drop = set(drop or ())
-    per_seed = []
-    for p in jsonl_paths:
-        rows = [r for r in _load(p) if r["feature_id"] not in drop]
-        per_seed.append(rows)
-    if not per_seed or not per_seed[0]:
+    loaded = _load_seeds(jsonl_paths, drop, estimator)
+    if loaded is None:
         return
-    N_max = min(max(r["N"] for r in rows) for rows in per_seed)
-    _, pred_of, est_label = _resolve_estimator(estimator, per_seed[0])
-    labels, slots, cols, title = _grid_layout(per_seed[0], jsonl_paths[0].parent / "features.json")
+    per_seed, N_max, pred_of, est_label, slots, cols, title, labels = loaded
     rows_g = len(slots) // cols
     colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
     fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g),
@@ -121,25 +168,59 @@ def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds", es
         if fid is None:
             ax.set_visible(False)
             continue
-        series = [_cum_series(rows, fid, N_max, pred_of) for rows in per_seed]
-        steps = series[0][0]
-        if any(len(s[0]) != len(steps) or not np.array_equal(s[0], steps) for s in series):
-            raise ValueError(f"feature {fid}: step schedules differ across seeds")
-        obs = np.stack([s[1] for s in series]); pred = np.stack([s[2] for s in series])
-        for o, pr in zip(obs, pred):
-            ax.plot(steps, o, color=colors[0], lw=0.8, alpha=0.3)
-            ax.plot(steps, pr, color=colors[1], lw=0.8, alpha=0.3)
-        ax.plot(steps, obs.mean(0), color=colors[0], lw=2, marker="o", ms=3, label="observed ΔT")
-        ax.plot(steps, pred.mean(0), color=colors[1], lw=2, marker="s", ms=3, label=f"Price ({est_label})")
-        ax.set_title(title(fid, series[0][3]), fontsize=9)
-        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-    axes.flat[0].legend(frameon=False, fontsize=8,
-                        title=f"bold = mean of {len(per_seed)} seeds", title_fontsize=8)
+        _draw_seed_panel(ax, per_seed, fid, N_max, pred_of, est_label, colors, title)
+    axes.flat[0].legend(frameon=False,
+                        title=f"bold = mean of {len(per_seed)} seeds")
     fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
     plt.tight_layout()
     for ext in ("png", "pdf"):
         plt.savefig(out_dir / f"{stem}.{ext}", dpi=150)
     plt.close(fig)
+
+
+def plot_row_seeds(jsonl_paths, out_dir, drop=None, stem="row_price_seeds", estimator=None,
+                   features=None, same_yspan=True):
+    """Paper headline: a single row of panels -- by default the FIRST feature of each group
+    (+#1, −#1, first control), i.e. the first column of grid_price_seeds transposed; pass
+    `features` to choose the panels explicitly. With same_yspan every panel gets the same
+    y-extent (positioned around its own data) so drifts are visually comparable across
+    panels without flattening the small ones the way a single shared axis would."""
+    out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    loaded = _load_seeds(jsonl_paths, drop, estimator)
+    if loaded is None:
+        return
+    per_seed, N_max, pred_of, est_label, slots, cols, title, labels = loaded
+    if features:
+        present = {f for f in slots if f is not None}
+        missing = [f for f in features if f not in present]
+        if missing:
+            raise ValueError(f"features not in run: {missing}")
+        heads = list(features)
+    else:
+        heads = [f for f in slots[::cols] if f is not None]
+    colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
+    # Paper figure: larger type than the dense diagnostic grids, scoped to this figure only.
+    with plt.rc_context(ROW_FONTS):
+        fig, axes = plt.subplots(1, len(heads), figsize=(4.4 * len(heads), 3.9), squeeze=False)
+        ranges = []
+        for ax, fid in zip(axes.flat, heads):
+            ranges.append(_draw_seed_panel(ax, per_seed, fid, N_max, pred_of, est_label, colors, title))
+            lab = labels.get(fid, (None,))[0]
+            group = "ctrl" if lab == "ctrl" else (lab[0] if lab else None)
+            if group in ROW_TITLES:
+                ax.set_title(ROW_TITLES[group])
+            ax.axhline(0, color="grey", lw=0.6, zorder=0)
+        if same_yspan:
+            _equalise_yspan(list(axes.flat), ranges)
+        axes.flat[0].set_ylabel("cumulative trait change")
+        axes.flat[0].legend(frameon=False, title=f"bold = mean of {len(per_seed)} seeds")
+        plt.tight_layout()
+        # shared x label, pulled up close to the tick labels
+        fig.supxlabel("GRPO step t", y=0.01)
+        fig.subplots_adjust(bottom=0.2)
+        for ext in ("png", "pdf"):
+            plt.savefig(out_dir / f"{stem}.{ext}", dpi=150)
+        plt.close(fig)
 
 
 def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
@@ -175,9 +256,9 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
         pred = np.cumsum([pred_of(r) for r in fr])
         ax.plot(steps, obs, color=colors[0], marker="o", ms=3, label="observed ΔT")
         ax.plot(steps, pred, color=colors[1], marker="s", ms=3, label=f"Price ({est_label})")
-        ax.set_title(_title(fid, fr), fontsize=9)
+        ax.set_title(_title(fid, fr))
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-    axes.flat[0].legend(frameon=False, fontsize=8)
+    axes.flat[0].legend(frameon=False)
     fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
     plt.tight_layout()
     for ext in ("png", "pdf"):
@@ -200,10 +281,10 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
     ax.scatter(obs_t, prd_t, s=20, color=colors[1], alpha=0.8, label="tracked", zorder=3)
     if obs_t.std() > 0:
         r_ = np.corrcoef(obs_t, prd_t)[0, 1]; sl = np.polyfit(obs_t, prd_t, 1)[0]
-        ax.set_title(f"predicted vs observed ΔT (N={N_max})\ncorr={r_:.2f}  slope={sl:.2f}", fontsize=11)
+        ax.set_title(f"predicted vs observed ΔT (N={N_max})\ncorr={r_:.2f}  slope={sl:.2f}")
     ax.set_xlabel("observed ΔT (direct)"); ax.set_ylabel(f"predicted ΔT (Price, {est_label})")
     ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim); ax.set_aspect("equal")
-    ax.legend(frameon=False, fontsize=9, loc="upper left")
+    ax.legend(frameon=False, loc="upper left")
     plt.tight_layout()
     for ext in ("png", "pdf"):
         plt.savefig(out_dir / f"price_scatter.{ext}", dpi=150)
@@ -232,18 +313,17 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
         if obs.std() > 0:
             r_sel = np.corrcoef(obs, sel)[0, 1]; r_full = np.corrcoef(obs, full)[0, 1]
             a1.set_title(f"predicted vs observed ΔT (N={N_max})\n"
-                         f"corr: {est_label}={r_sel:.2f} → {est_label}+trans={r_full:.2f}", fontsize=10.5)
+                         f"corr: {est_label}={r_sel:.2f} → {est_label}+trans={r_full:.2f}")
         a1.set_xlabel("observed ΔT (direct)"); a1.set_ylabel("predicted ΔT")
         a1.set_xlim(-lim, lim); a1.set_ylim(-lim, lim); a1.set_aspect("equal")
-        a1.legend(frameon=False, fontsize=8.5, loc="upper left")
+        a1.legend(frameon=False, loc="upper left")
 
         # right: how big is the transmission term relative to the selection term.
         m = float(np.abs(np.concatenate([sel, trn, [0.0]])).max()) * 1.1
         a2.axhline(0, lw=0.5, color="grey", zorder=0); a2.axvline(0, lw=0.5, color="grey", zorder=0)
         a2.scatter(sel, trn, s=22, color=colors[2], alpha=0.8, zorder=3)
         share = float(np.abs(trn).mean() / (np.abs(obs).mean() + 1e-12))
-        a2.set_title(f"transmission vs selection\nmean |trans| / mean |ΔT| = {share:.2f}",
-                     fontsize=10.5)
+        a2.set_title(f"transmission vs selection\nmean |trans| / mean |ΔT| = {share:.2f}")
         a2.set_xlabel(f"{est_label}  cov(ω, s)"); a2.set_ylabel("transmission  E[ω·Δs]")
         a2.set_xlim(-m, m); a2.set_ylim(-m, m); a2.set_aspect("equal")
         plt.tight_layout()
@@ -272,9 +352,9 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
                     label=f"{est_label} + trans", zorder=3)
             ax.plot(steps, cov, color=colors[1], ls=":", lw=1.6, label=f"{est_label}", zorder=2)
             ax.plot(steps, tr, color=colors[3], ls="-.", lw=1.4, label="transmission", zorder=2)
-            ax.set_title(_title(fid, fr), fontsize=9)
+            ax.set_title(_title(fid, fr))
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-        axes.flat[0].legend(frameon=False, fontsize=7)
+        axes.flat[0].legend(frameon=False)
         fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
         plt.tight_layout()
         for ext in ("png", "pdf"):

@@ -21,8 +21,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 plt.rcParams.update({
-    "font.family": "serif", "font.size": 12, "axes.labelsize": 13,
-    "legend.fontsize": 11, "xtick.labelsize": 10, "ytick.labelsize": 11,
+    # Match Adil's figures: matplotlib default sans-serif (DejaVu Sans), base size 10,
+    # all other text sizes at their defaults relative to font.size.
+    "font.family": "sans-serif", "font.size": 10,
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
@@ -106,13 +107,13 @@ def main():
             ax.plot(xs, med, color="tab:orange", ls="--", lw=1.4,
                     label=r"Sampled $\sum\widehat{\mathrm{Cov}}(\omega,s)$")
             ax.plot(xs, ref, color="tab:blue", lw=1.8, label=f"Reference (N={N})")
-            ax.set_title(f"$n={n}$", fontsize=13)
+            ax.set_title(f"$n={n}$")
             ax.set_xlabel("step $t$")
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=4))
         axes[0][0].set_ylabel("cumulative trait change")
-        axes[0][0].legend(frameon=False, fontsize=9, loc="best")
+        axes[0][0].legend(frameon=False, loc="best")
         lab = labels.get(fid, "ctrl" if is_ctrl[fi] else "")
-        fig.suptitle(f"feat {fid}  {lab}", fontsize=12)
+        fig.suptitle(f"feat {fid}  {lab}", fontsize=14)
         plt.tight_layout(rect=(0, 0, 1, 0.97))
         stem = band_dir / f"feat_{fid}"
         for ext in ("png", "pdf"):
