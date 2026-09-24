@@ -119,6 +119,8 @@ See [outline.md](outline.md) §2 for the full spec.
 ## Running
 
 Both runners take `--mode {tabular,neural}` (default `tabular`); outputs go to `results/<name>/<mode>/`.
+Both also take `--replot`, which skips training and redraws every figure from the saved `curves.npz`
+in the run dir (a few seconds, CPU only), so style changes never need a rerun.
 
 **Single run:**
 
@@ -131,6 +133,7 @@ Runs `num_runs` seeds, averages the curves, and writes to `results/<name>/<mode>
 
 - `config.yaml` — a copy of the config used
 - `metrics.json` — per-step `trait_mean/sem` and `reward_mean/sem`
+- `curves.npz` — the same curves at full precision, consumed by `--replot`
 - `plots/expected_trait.{png,pdf}` — $T_t$ vs $t$, with SEM band and the $T_0$ baseline
 - `plots/trait_and_reward.{png,pdf}` — $T_t$ and $R_t$ together
 - `plots/price_check_exact.{png,pdf}` — observed $\Delta T$ vs exact $\sum\mathrm{Cov}(\omega,s)$ (both modes)
@@ -146,7 +149,8 @@ uv run python run_sweep.py --config configs/config_sweep.yaml --mode neural
 Set `gamma` and `p` as lists in `HiddenQualityConfig`. Each cell is a full `num_runs` run; outputs to `results/<name>/<mode>/plots_sweep/`:
 
 - `metrics.json` — final-step trait/reward (mean + SEM) per `(gamma, p)` cell
-- `plots_sweep/grid_trait_reward.{png,pdf}` — small-multiples grid, rows = $\gamma$, cols = $p$
+- `curves.npz` — per-cell curves at full precision, consumed by `--replot`
+- `plots_sweep/grid_trait_reward.{png,pdf}` — small-multiples grid, rows = $p$, cols = $\gamma$
 - `plots_sweep/grid_price_exact.{png,pdf}` — observed vs exact $\mathrm{Cov}$ per cell (both modes)
 - `plots_sweep/grid_price_estimated.{png,pdf}` — observed vs sampled $\mathrm{Cov}$ per cell (neural only)
 

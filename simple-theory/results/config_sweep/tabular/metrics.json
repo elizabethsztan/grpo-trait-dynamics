@@ -1,0 +1,121 @@
+{
+  "gammas": [
+    -0.3,
+    0.0,
+    0.3,
+    0.5,
+    0.7
+  ],
+  "ps": [
+    0.0,
+    0.1,
+    0.5
+  ],
+  "final": {
+    "gamma=-0.3,p=0.0": {
+      "trait_mean": 0.0,
+      "trait_sem": 0.0,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": null
+    },
+    "gamma=-0.3,p=0.1": {
+      "trait_mean": 0.032,
+      "trait_sem": 0.0027,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=-0.3,p=0.5": {
+      "trait_mean": 0.3104,
+      "trait_sem": 0.0079,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=0.0,p=0.0": {
+      "trait_mean": 0.0,
+      "trait_sem": 0.0,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": null
+    },
+    "gamma=0.0,p=0.1": {
+      "trait_mean": 0.0941,
+      "trait_sem": 0.0055,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=0.0,p=0.5": {
+      "trait_mean": 0.4983,
+      "trait_sem": 0.0027,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=0.3,p=0.0": {
+      "trait_mean": 0.0,
+      "trait_sem": 0.0,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": null
+    },
+    "gamma=0.3,p=0.1": {
+      "trait_mean": 0.2123,
+      "trait_sem": 0.006,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=0.3,p=0.5": {
+      "trait_mean": 0.6857,
+      "trait_sem": 0.0082,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=0.5,p=0.0": {
+      "trait_mean": 0.0,
+      "trait_sem": 0.0,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": null
+    },
+    "gamma=0.5,p=0.1": {
+      "trait_mean": 0.3075,
+      "trait_sem": 0.0062,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=0.5,p=0.5": {
+      "trait_mean": 0.8015,
+      "trait_sem": 0.0033,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=0.7,p=0.0": {
+      "trait_mean": 0.0,
+      "trait_sem": 0.0,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": null
+    },
+    "gamma=0.7,p=0.1": {
+      "trait_mean": 0.4427,
+      "trait_sem": 0.0048,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    },
+    "gamma=0.7,p=0.5": {
+      "trait_mean": 0.8978,
+      "trait_sem": 0.0047,
+      "reward_mean": 0.8149,
+      "reward_sem": 0.0014,
+      "selection_explained_frac": 1.0
+    }
+  }
+}

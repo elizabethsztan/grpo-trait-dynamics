@@ -9,33 +9,35 @@ import yaml
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-from run_experiment import run_config, cfg_value
+from run_experiment import run_config, cfg_value, load_curves
 
 LOGGER = logging.getLogger(__name__)
 
 plt.rcParams.update({
-    "font.family": "serif",
-    "font.size": 18,
-    "axes.labelsize": 20,
-    "axes.titlesize": 20,
-    "figure.labelsize": 22,
-    "legend.fontsize": 18,
-    "xtick.labelsize": 16,
-    "ytick.labelsize": 16,
+    # Adil's font family (matplotlib default sans-serif, DejaVu Sans), large sizes.
+    "font.family": "sans-serif",
+    "font.size": 19,
+    "axes.labelsize": 24,
+    "axes.titlesize": 24,
+    "figure.labelsize": 23,
+    "legend.fontsize": 22,
+    "xtick.labelsize": 18,
+    "ytick.labelsize": 18,
     "axes.spines.top": False,
     "axes.spines.right": False,
 })
 
 
 def plot_grid(gammas, ps, results, colors, output_dir, stem):
-    n_rows = len(gammas)
-    n_cols = len(ps)
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(2.4 * n_cols, 1.9 * n_rows),
+    # rows vary p, columns vary gamma; results stay keyed (gamma index, p index)
+    n_rows = len(ps)
+    n_cols = len(gammas)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4.1 * n_cols, 3.7 * n_rows),
                              sharex=True, sharey=True, squeeze=False)
 
     for i, gamma in enumerate(gammas):
         for j, p in enumerate(ps):
-            ax = axes[i][j]
+            ax = axes[j][i]
             res = results[(i, j)]
             steps_axis = res["steps_axis"]
             trait_mean = res["trait_mean"]
@@ -55,16 +57,16 @@ def plot_grid(gammas, ps, results, colors, output_dir, stem):
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
             ax.set_yticks([0.0, 0.25, 0.5, 0.75])
 
-            if i == 0:
-                ax.set_title(rf"$p$ = {p}")
             if j == 0:
-                ax.set_ylabel(rf"$\gamma$ = {gamma}")
-            if i == n_rows - 1:
+                ax.set_title(rf"$\gamma$ = {gamma}")
+            if i == 0:
+                ax.set_ylabel(rf"$p$ = {p}")
+            if j == n_rows - 1:
                 ax.set_xlabel(r"step $t$")
 
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, loc="upper center", ncol=2)
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.tight_layout(rect=(0, 0, 1, 0.91))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)
@@ -73,14 +75,15 @@ def plot_grid(gammas, ps, results, colors, output_dir, stem):
 def plot_combined_grid(gammas, ps, results, colors, output_dir, stem):
     # Absolute-level grid: observed trait T_t, reward R_t, and the Price prediction
     # shifted up by T_0 (= T_0 + sum Cov) as a dashed validator overlaying the trait line.
-    n_rows = len(gammas)
-    n_cols = len(ps)
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(2.4 * n_cols, 1.9 * n_rows),
+    # rows vary p, columns vary gamma; results stay keyed (gamma index, p index)
+    n_rows = len(ps)
+    n_cols = len(gammas)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4.1 * n_cols, 3.7 * n_rows),
                              sharex=True, sharey=True, squeeze=False)
 
     for i, gamma in enumerate(gammas):
         for j, p in enumerate(ps):
-            ax = axes[i][j]
+            ax = axes[j][i]
             res = results[(i, j)]
             steps_axis = res["steps_axis"]
             trait_mean = res["trait_mean"]
@@ -112,17 +115,17 @@ def plot_combined_grid(gammas, ps, results, colors, output_dir, stem):
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
             ax.set_yticks([0.0, 0.25, 0.5, 0.75])
 
-            if i == 0:
-                ax.set_title(rf"$p$ = {p}")
             if j == 0:
-                ax.set_ylabel(rf"$\gamma$ = {gamma}")
-            if i == n_rows - 1:
+                ax.set_title(rf"$\gamma$ = {gamma}")
+            if i == 0:
+                ax.set_ylabel(rf"$p$ = {p}")
+            if j == n_rows - 1:
                 ax.set_xlabel(r"step $t$")
 
     fig.supylabel(r"Expected trait / reward under $\pi_t$")
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, loc="upper center", ncol=3)
-    fig.tight_layout(rect=(0.02, 0, 1, 0.96))
+    fig.tight_layout(rect=(0.02, 0, 1, 0.91))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)
@@ -130,14 +133,15 @@ def plot_combined_grid(gammas, ps, results, colors, output_dir, stem):
 
 def plot_price_grid_curves(gammas, ps, results, colors, output_dir, stem, pred_key, pred_label):
     # curves-only grid (no residual panel) of observed vs a chosen prediction (exact or sampled)
-    n_rows = len(gammas)
-    n_cols = len(ps)
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(2.4 * n_cols, 1.9 * n_rows),
+    # rows vary p, columns vary gamma; results stay keyed (gamma index, p index)
+    n_rows = len(ps)
+    n_cols = len(gammas)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4.1 * n_cols, 3.7 * n_rows),
                              sharex=True, squeeze=False)
 
     for i, gamma in enumerate(gammas):
         for j, p in enumerate(ps):
-            ax = axes[i][j]
+            ax = axes[j][i]
             res = results[(i, j)]
             steps_axis = res["steps_axis"]
             obs = res["observed_cum_mean"]
@@ -154,16 +158,16 @@ def plot_price_grid_curves(gammas, ps, results, colors, output_dir, stem, pred_k
             ax.axhline(0, color="grey", ls="--", lw=0.8, zorder=0)
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
 
-            if i == 0:
-                ax.set_title(rf"$p$ = {p}")
             if j == 0:
-                ax.set_ylabel(rf"$\gamma$ = {gamma}")
-            if i == n_rows - 1:
+                ax.set_title(rf"$\gamma$ = {gamma}")
+            if i == 0:
+                ax.set_ylabel(rf"$p$ = {p}")
+            if j == n_rows - 1:
                 ax.set_xlabel(r"step $t$")
 
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, loc="upper center", ncol=2)
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    fig.tight_layout(rect=(0, 0, 1, 0.91))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)
@@ -173,7 +177,7 @@ def plot_price_samples_grid(samples_list, results, colors, output_dir, stem):
     # 1-row grid, one cell per price-sample count: observed (= exact dT) vs the sampled
     # cumulative estimator. As n grows the sampled curve tightens onto the observed line.
     n_cols = len(samples_list)
-    fig, axes = plt.subplots(1, n_cols, figsize=(2.4 * n_cols, 2.6),
+    fig, axes = plt.subplots(1, n_cols, figsize=(4.1 * n_cols, 3.9),
                              sharex=True, sharey=True, squeeze=False)
 
     for k, ns in enumerate(samples_list):
@@ -199,10 +203,44 @@ def plot_price_samples_grid(samples_list, results, colors, output_dir, stem):
     axes[0][0].set_ylabel("Cumulative trait change")
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, loc="upper center", ncol=2)
-    fig.tight_layout(rect=(0, 0, 1, 0.9))
+    fig.tight_layout(rect=(0, 0, 1, 0.85))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)
+
+
+def save_sweep_curves(results, path):
+    """Flatten {cell_key: {curve: array}} into one npz; cell keys become 'i_j' or 'k' prefixes."""
+    flat = {}
+    for cell, res in results.items():
+        prefix = "_".join(str(x) for x in cell) if isinstance(cell, tuple) else str(cell)
+        for key, value in res.items():
+            flat[f"{prefix}__{key}"] = np.asarray(value)
+    np.savez(path, **flat)
+    LOGGER.info(f"saved curves to {path}")
+
+
+def load_sweep_curves(path, tuple_keys):
+    flat = load_curves(path)
+    results = {}
+    for name, value in flat.items():
+        prefix, key = name.rsplit("__", 1)
+        cell = tuple(int(x) for x in prefix.split("_")) if tuple_keys else int(prefix)
+        results.setdefault(cell, {})[key] = value
+    return results
+
+
+def plot_gamma_p(gammas, ps, results, price_check, cfg, plots_dir, colors):
+    plot_grid(gammas, ps, results, colors, plots_dir, "grid_trait_reward")
+    if price_check:
+        plot_combined_grid(gammas, ps, results, colors, plots_dir, "grid_trait_reward_price")
+        plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_exact",
+                               "predicted_cum", r"Exact $\sum \mathrm{Cov}(\omega, s)$")
+        if "sampled_cum_mean" in next(iter(results.values())):
+            samples = cfg.get("PriceCheckConfig", {}).get("samples", 512)
+            plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_estimated",
+                                   "sampled_cum", rf"Sampled $n={samples}$")
+    LOGGER.info(f"saved grid plot to {plots_dir}")
 
 
 def run_gamma_p_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_seed, num_runs,
@@ -242,17 +280,9 @@ def run_gamma_p_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_seed, n
     with open(metrics_path, "w") as f:
         json.dump({"gammas": gammas, "ps": ps, "final": final}, f, indent=2)
     LOGGER.info(f"saved metrics to {metrics_path}")
+    save_sweep_curves(results, run_dir / "curves.npz")
 
-    plot_grid(gammas, ps, results, colors, plots_dir, "grid_trait_reward")
-    if price_check:
-        plot_combined_grid(gammas, ps, results, colors, plots_dir, "grid_trait_reward_price")
-        plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_exact",
-                               "predicted_cum", r"Exact $\sum \mathrm{Cov}(\omega, s)$")
-        if "sampled_cum_mean" in next(iter(results.values())):
-            samples = cfg.get("PriceCheckConfig", {}).get("samples", 512)
-            plot_price_grid_curves(gammas, ps, results, colors, plots_dir, "grid_price_estimated",
-                                   "sampled_cum", rf"Sampled $n={samples}$")
-    LOGGER.info(f"saved grid plot to {plots_dir}")
+    plot_gamma_p(gammas, ps, results, price_check, cfg, plots_dir, colors)
 
 
 def run_price_samples_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_seed, num_runs,
@@ -289,6 +319,7 @@ def run_price_samples_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_s
     with open(metrics_path, "w") as f:
         json.dump({"samples": samples_list, "final": final}, f, indent=2)
     LOGGER.info(f"saved metrics to {metrics_path}")
+    save_sweep_curves(results, run_dir / "curves_price_samples.npz")
 
     plot_price_samples_grid(samples_list, results, colors, plots_dir, "grid_price_samples")
     LOGGER.info(f"saved grid plot to {plots_dir}")
@@ -302,6 +333,8 @@ def main():
                         help="axis to sweep: gamma-p grid, or the price-sample budget (neural only)")
     parser.add_argument("--no-price-check", action="store_false", dest="price_check",
                         help="disable the Price-equation check (on by default; ignored by price-samples)")
+    parser.add_argument("--replot", action="store_true",
+                        help="skip training; redraw plots from the saved curves npz in the run dir")
     parser.set_defaults(price_check=True)
     args = parser.parse_args()
 
@@ -328,6 +361,24 @@ def main():
 
     run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"] / args.mode
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.replot:
+        if args.sweep == "price-samples":
+            results = load_sweep_curves(run_dir / "curves_price_samples.npz", tuple_keys=False)
+            samples_list = cfg["PriceCheckConfigSweep"]["samples"]
+            plots_dir = run_dir / "plots_sweep_price_samples"
+            plots_dir.mkdir(parents=True, exist_ok=True)
+            plot_price_samples_grid(samples_list, results, colors, plots_dir, "grid_price_samples")
+            LOGGER.info(f"saved grid plot to {plots_dir}")
+        else:
+            results = load_sweep_curves(run_dir / "curves.npz", tuple_keys=True)
+            hq_sweep = cfg["HiddenQualityConfigSweep"]
+            plots_dir = run_dir / "plots_sweep"
+            plots_dir.mkdir(parents=True, exist_ok=True)
+            price_check = "predicted_cum_mean" in next(iter(results.values()))
+            plot_gamma_p(hq_sweep["gamma"], hq_sweep["p"], results, price_check, cfg, plots_dir, colors)
+        return
+
     shutil.copy2(args.config, run_dir / "config.yaml")
 
     if args.sweep == "price-samples":

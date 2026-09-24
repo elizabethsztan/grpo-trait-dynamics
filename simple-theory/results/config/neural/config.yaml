@@ -1,0 +1,35 @@
+TabularPolicyConfig:
+  N: 512
+  K: 16
+  G: 8
+  mode: hidden_quality
+
+HiddenQualityConfig:
+  gamma: 0.5
+  p: 0.3
+  alpha: 1.0
+
+NeuralPolicyConfig:
+  N_eval: 512
+  d: 32
+
+TrainConfig:
+  steps: 2000
+  batch_size: 64
+  num_runs: 5
+  seed: 290402
+  eta: 0.3
+
+NeuralTrainConfig:
+  steps: 1000
+  batch_size: 64
+  num_runs: 5
+  seed: 290402
+  lr: 0.02
+
+OutputConfig:
+  results_dir: results
+  name: config
+
+PriceCheckConfig:
+  samples: 512

@@ -14,14 +14,15 @@ from src.policy import TabularPolicy, NeuralPolicy
 LOGGER = logging.getLogger(__name__)
 
 plt.rcParams.update({
-    "font.family": "serif",
-    "font.size": 18,
-    "axes.labelsize": 20,
-    "axes.titlesize": 20,
-    "figure.labelsize": 22,
-    "legend.fontsize": 18,
-    "xtick.labelsize": 16,
-    "ytick.labelsize": 16,
+    # Adil's font family (matplotlib default sans-serif, DejaVu Sans), large sizes.
+    "font.family": "sans-serif",
+    "font.size": 19,
+    "axes.labelsize": 24,
+    "axes.titlesize": 24,
+    "figure.labelsize": 23,
+    "legend.fontsize": 22,
+    "xtick.labelsize": 18,
+    "ytick.labelsize": 18,
     "axes.spines.top": False,
     "axes.spines.right": False,
 })
@@ -156,8 +157,19 @@ def run_config(policy_cfg, reward_cfg, train_cfg, base_seed, num_runs, label="",
     return result
 
 
+def save_curves(result, path):
+    """Persist the full-precision curves so plots can be regenerated with --replot."""
+    np.savez(path, **{k: np.asarray(v) for k, v in result.items()})
+    LOGGER.info(f"saved curves to {path}")
+
+
+def load_curves(path):
+    with np.load(path) as data:
+        return {k: data[k] for k in data.files}
+
+
 def plot_trait(steps_axis, trait_mean, trait_sem, color, output_dir, stem):
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(7.5, 5.6))
     markevery = max(1, len(steps_axis) // 10)
 
     ax.fill_between(steps_axis, trait_mean - trait_sem, trait_mean + trait_sem,
@@ -168,7 +180,7 @@ def plot_trait(steps_axis, trait_mean, trait_sem, color, output_dir, stem):
     ax.axhline(trait_mean[0], color="grey", ls="--", lw=1, zorder=0)
     ax.set_xlabel(r"GRPO step $t$")
     ax.set_ylabel(r"Expected trait $T_t$")
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=6))
     plt.tight_layout()
     plt.savefig(output_dir / f"{stem}.png", dpi=150)
     plt.savefig(output_dir / f"{stem}.pdf")
@@ -176,7 +188,7 @@ def plot_trait(steps_axis, trait_mean, trait_sem, color, output_dir, stem):
 
 
 def plot_trait_and_reward(steps_axis, series, colors, output_dir, stem):
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(7.5, 5.6))
     markevery = max(1, len(steps_axis) // 10)
 
     for i, (label, mean, sem) in enumerate(series):
@@ -188,7 +200,7 @@ def plot_trait_and_reward(steps_axis, series, colors, output_dir, stem):
 
     ax.set_xlabel(r"GRPO step $t$")
     ax.set_ylabel("Level")
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=6))
     ax.legend(frameon=False)
     plt.tight_layout()
     plt.savefig(output_dir / f"{stem}.png", dpi=150)
@@ -201,9 +213,9 @@ def plot_price_check(steps_axis, observed_mean, observed_sem, predicted_mean, pr
     # residual panel is informative for the tabular Monte-Carlo estimator; the neural price
     # check is exact, so its residual is ~0 and gets dropped (show_residual=False).
     if show_residual:
-        fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(5, 6), sharex=True)
+        fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=(8, 9), sharex=True)
     else:
-        fig, ax_top = plt.subplots(figsize=(5, 4))
+        fig, ax_top = plt.subplots(figsize=(8, 5.6))
     markevery = max(1, len(steps_axis) // 10)
 
     if predicted_label is None:
@@ -218,19 +230,19 @@ def plot_price_check(steps_axis, observed_mean, observed_sem, predicted_mean, pr
                 marker="o", markersize=4, markevery=markevery, zorder=2)
     ax_top.plot(steps_axis, predicted_mean, label=predicted_label,
                 color=colors[1], lw=1.5, marker="s", markersize=4, markevery=markevery, zorder=2)
-    ax_top.set_ylabel("Cumulative trait change")
-    ax_top.legend(frameon=False)
+    ax_top.set_ylabel("Cumulative\ntrait change")
+    ax_top.legend(frameon=False, loc="lower right", handlelength=1.5)
 
     if show_residual:
         ax_bot.axhline(0, color="grey", ls="--", lw=1, zorder=0)
         ax_bot.plot(steps_axis, observed_mean - predicted_mean, color=colors[2], lw=1.5,
                     marker="o", markersize=4, markevery=markevery, zorder=2)
-        ax_bot.set_ylabel("Residual (obs - pred)")
+        ax_bot.set_ylabel("Residual\n(obs - pred)")
         ax_bot.set_xlabel(r"GRPO step $t$")
-        ax_bot.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        ax_bot.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=6))
     else:
         ax_top.set_xlabel(r"GRPO step $t$")
-        ax_top.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        ax_top.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=6))
 
     plt.tight_layout()
     plt.savefig(output_dir / f"{stem}.png", dpi=150)
@@ -244,6 +256,8 @@ def main():
     parser.add_argument("--mode", choices=["tabular", "neural"], default="tabular")
     parser.add_argument("--no-price-check", action="store_false", dest="price_check",
                         help="disable the Price-equation check (on by default)")
+    parser.add_argument("--replot", action="store_true",
+                        help="skip training; redraw plots from the saved curves.npz in the run dir")
     parser.set_defaults(price_check=True)
     args = parser.parse_args()
 
@@ -267,32 +281,42 @@ def main():
     price_check = args.price_check
     price_samples = cfg.get("PriceCheckConfig", {}).get("samples", 512)
 
-    result = run_config(policy_cfg, reward_cfg, train_cfg, train_cfg["seed"], train_cfg["num_runs"],
-                        price_check=price_check, mode=args.mode, neural_cfg=neural_cfg,
-                        price_samples=price_samples)
+    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"] / args.mode
+    plots_dir = run_dir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
+    curves_path = run_dir / "curves.npz"
 
+    if args.replot:
+        result = load_curves(curves_path)
+        LOGGER.info(f"loaded curves from {curves_path}")
+        price_check = "predicted_cum_mean" in result
+    else:
+        result = run_config(policy_cfg, reward_cfg, train_cfg, train_cfg["seed"], train_cfg["num_runs"],
+                            price_check=price_check, mode=args.mode, neural_cfg=neural_cfg,
+                            price_samples=price_samples)
+        shutil.copy2(args.config, run_dir / "config.yaml")
+        save_curves(result, curves_path)
+
+        metrics_path = run_dir / "metrics.json"
+        metrics = {
+            key: [round(float(v), 4) for v in value]
+            for key, value in result.items()
+            if key.endswith("_mean") or key.endswith("_sem") or key == "steps_axis"
+        }
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f, indent=2)
+        LOGGER.info(f"saved metrics to {metrics_path}")
+
+    make_plots(result, plots_dir, price_check, price_samples)
+    LOGGER.info(f"saved plots to {plots_dir}")
+
+
+def make_plots(result, plots_dir, price_check, price_samples):
     steps_axis = result["steps_axis"]
     trait_mean = result["trait_mean"]
     trait_sem = result["trait_sem"]
     reward_mean = result["reward_mean"]
     reward_sem = result["reward_sem"]
-
-    run_dir = Path(output_cfg["results_dir"]) / output_cfg["name"] / args.mode
-    plots_dir = run_dir / "plots"
-    plots_dir.mkdir(parents=True, exist_ok=True)
-
-    shutil.copy2(args.config, run_dir / "config.yaml")
-
-    metrics_path = run_dir / "metrics.json"
-    metrics = {
-        key: [round(float(v), 4) for v in value]
-        for key, value in result.items()
-        if key.endswith("_mean") or key.endswith("_sem") or key == "steps_axis"
-    }
-    with open(metrics_path, "w") as f:
-        json.dump(metrics, f, indent=2)
-    LOGGER.info(f"saved metrics to {metrics_path}")
-
     colors = [prop["color"] for prop in plt.rcParams["axes.prop_cycle"]]
 
     plot_trait(steps_axis, trait_mean, trait_sem, colors[0], plots_dir, "expected_trait")
@@ -324,8 +348,6 @@ def main():
                              predicted_label=sampled_label, show_residual=True)
             LOGGER.info(f"price check (sampled n={price_samples}): "
                         f"sampled={result['sampled_cum_mean'][-1]:.4f}")
-
-    LOGGER.info(f"saved plots to {plots_dir}")
 
 
 if __name__ == "__main__":
