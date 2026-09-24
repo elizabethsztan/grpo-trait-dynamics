@@ -85,34 +85,41 @@ def main():
     allpts = np.concatenate([np.concatenate([s["obs"], s["prd"]]) for s in seeds.values()])
     lim = float(np.abs(np.concatenate([allpts, [0.0]])).max()) * 1.1
 
-    fig, ax = plt.subplots(figsize=(5.0, 5.0))
+    fig, ax = plt.subplots(figsize=(5.4, 5.4))
     ax.plot([-lim, lim], [-lim, lim], ls="--", lw=0.9, color="grey", zorder=0)
     ax.axhline(0, lw=0.5, color="grey", zorder=0); ax.axvline(0, lw=0.5, color="grey", zorder=0)
-    # Encode BOTH dimensions everywhere: colour = seed, marker fill = tracked vs control.
-    # Filled dot = tracked feature (ρ≠0); open dot = control (ρ=0). Controls stay seed-
-    # resolved rather than pooled into an anonymous grey cloud.
-    for i, (name, s) in enumerate(seeds.items()):
+    # Encode both dimensions everywhere: colour = seed, marker fill = tracked vs control.
+    seed_handles = []
+    for i, (_, s) in enumerate(seeds.items()):
         col = SEED_COLORS[i % len(SEED_COLORS)]
         if len(s["obs_c"]):
             ax.scatter(s["obs_c"], s["prd_c"], s=20, facecolors="none", edgecolors=col,
                        linewidths=0.9, alpha=0.7, zorder=2)
-        ax.scatter(s["obs"], s["prd"], s=22, color=col, alpha=0.75, edgecolor="none",
-                   label=f"{name}  (ρ={corrs[i]:.2f}, slope={slopes[i]:.2f})", zorder=3)
-    # marker-shape legend (colour-agnostic) so open=control / filled=tracked is explicit
+        seed_handles.append(
+            ax.scatter(s["obs"], s["prd"], s=22, color=col, alpha=0.75,
+                       edgecolor="none", label=f"Seed {i + 1}", zorder=3)
+        )
+    # Marker-shape keys are colour-agnostic: open = control, filled = tracked.
     from matplotlib.lines import Line2D
-    shape_leg = [Line2D([0], [0], marker="o", color="dimgrey", ls="none", ms=6, label="tracked (ρ≠0)"),
-                 Line2D([0], [0], marker="o", mfc="none", mec="dimgrey", color="dimgrey",
-                        ls="none", ms=6, label="control (ρ=0)")]
+    shape_leg = [
+        Line2D([0], [0], marker="o", color="dimgrey", ls="none", ms=6,
+               label="Tracked"),
+        Line2D([0], [0], marker="o", mfc="none", mec="dimgrey", color="dimgrey",
+               ls="none", ms=6, label="Control"),
+    ]
     N = next(iter(seeds.values()))["N"]
-    ax.set_title(f"predicted vs observed ΔT  (N={N}, {len(seeds)} seeds)\n"
-                 f"corr = {corrs.mean():.3f} ± {corrs.std(ddof=1):.3f}    "
-                 f"slope = {slopes.mean():.3f} ± {slopes.std(ddof=1):.3f}")
-    ax.set_xlabel("observed ΔT (direct)"); ax.set_ylabel("predicted ΔT (Price, cov)")
+    ax.set_title(f"Predicted vs. Observed ΔT ($N={N}$, {len(seeds)} Seeds)\n"
+                 f"Correlation = {corrs.mean():.3f} ± {corrs.std(ddof=1):.3f}    "
+                 f"Slope = {slopes.mean():.3f} ± {slopes.std(ddof=1):.3f}")
+    ax.set_xlabel("Observed ΔT (Direct)")
+    ax.set_ylabel("Predicted ΔT (Price, Cov)")
     ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim); ax.set_aspect("equal")
-    seed_leg = ax.legend(frameon=False, loc="upper left")
-    ax.add_artist(seed_leg)
-    ax.legend(handles=shape_leg, frameon=False, loc="lower right")
-    plt.tight_layout()
+    legend_handles = ([seed_handles[0], shape_leg[0], seed_handles[1],
+                       shape_leg[1], seed_handles[2]]
+                      if len(seed_handles) == 3 else seed_handles + shape_leg)
+    fig.legend(handles=legend_handles, loc="lower center", ncol=3,
+               frameon=False, bbox_to_anchor=(0.5, 0.07))
+    plt.tight_layout(rect=(0, 0.15, 1, 1))
 
     out_dir = Path(args.out) if args.out else root / "plots_seeds"
     out_dir.mkdir(parents=True, exist_ok=True)

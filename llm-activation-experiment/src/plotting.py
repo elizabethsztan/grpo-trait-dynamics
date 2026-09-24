@@ -13,8 +13,9 @@ plt.rcParams.update({
     "axes.spines.top": False, "axes.spines.right": False,
 })
 
-# Larger type for the paper headline row (plot_row_seeds); the diagnostic grids keep the
-# compact defaults above.
+# Larger type for paper figures.  The dense 3-by-5 grid keeps the row figure's
+# typography, grid, ticks, and external legend, with smaller panel titles so
+# feature identifiers do not collide.
 # Row-panel headers by feature group: sign of the feature's initial reward correlation.
 ROW_TITLES = {"+": r"$\rho_{t=0} > 0$", "−": r"$\rho_{t=0} < 0$", "ctrl": r"$\rho_{t=0} \approx 0$"}
 
@@ -24,6 +25,14 @@ ROW_FONTS = {
     "xtick.labelsize": 14, "ytick.labelsize": 14,
     # light grid, as in Adil's figures
     "axes.grid": True, "grid.alpha": 0.18,
+}
+
+GRID_FONTS = {
+    **ROW_FONTS,
+    "axes.titlesize": 12,
+    "legend.fontsize": 13,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
 }
 
 
@@ -73,7 +82,7 @@ def _grid_layout(rows, features_path):
         lab, rho = labels.get(fid, (None, None))
         if lab is None:
             return f"feat {fid}{' (ctrl)' if (fr and fr[0]['is_control']) else ''}"
-        return f"feat {fid}  {lab}" + (f" (ρ={rho:+.2f})" if rho is not None else "")
+        return f"feat {fid}\n" + (f"($\\rho_{{t=0}}={rho:+.2f}$)" if rho is not None else "")
 
     return labels, slots, cols, title
 
@@ -152,9 +161,7 @@ def _equalise_yspan(axes, ranges, pad=0.05):
 
 
 def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds", estimator=None):
-    """grid_price across GRPO seeds: each seed's cumulative curve drawn light, the
-    across-seed mean in bold. Features/steps must match across seeds (same features.json,
-    same Phase-3 schedule); features.json and panel order are taken from the FIRST run."""
+    """Paper-style grid across GRPO seeds, one panel per tracked feature."""
     out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
     loaded = _load_seeds(jsonl_paths, drop, estimator)
     if loaded is None:
@@ -162,20 +169,29 @@ def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds", es
     per_seed, N_max, pred_of, est_label, slots, cols, title, labels = loaded
     rows_g = len(slots) // cols
     colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
-    fig, axes = plt.subplots(rows_g, cols, figsize=(3 * cols, 2.6 * rows_g),
-                             squeeze=False, sharey="row")
-    for ax, fid in zip(axes.flat, slots):
-        if fid is None:
-            ax.set_visible(False)
-            continue
-        _draw_seed_panel(ax, per_seed, fid, N_max, pred_of, est_label, colors, title)
-    axes.flat[0].legend(frameon=False,
-                        title=f"bold = mean of {len(per_seed)} seeds")
-    fig.supxlabel("GRPO step t"); fig.supylabel("cumulative trait change")
-    plt.tight_layout()
-    for ext in ("png", "pdf"):
-        plt.savefig(out_dir / f"{stem}.{ext}", dpi=150)
-    plt.close(fig)
+    with plt.rc_context(GRID_FONTS):
+        fig, axes = plt.subplots(rows_g, cols, figsize=(15, 8.2),
+                                 squeeze=False, sharey="row")
+        for ax, fid in zip(axes.flat, slots):
+            if fid is None:
+                ax.set_visible(False)
+                continue
+            _draw_seed_panel(ax, per_seed, fid, N_max, pred_of, est_label, colors, title)
+            ax.axhline(0, color="grey", lw=0.6, zorder=0)
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(6))
+            ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+        xlabel = fig.supxlabel("GRPO Step $t$", y=0.055)
+        xlabel.set_in_layout(False)
+        ylabel = fig.supylabel("Cumulative Trait Change", x=0.052)
+        ylabel.set_in_layout(False)
+        handles, labels_ = axes.flat[0].get_legend_handles_labels()
+        legend = fig.legend(handles, labels_, loc="lower center", ncol=2, frameon=False,
+                            bbox_to_anchor=(0.5, -0.005))
+        legend.set_in_layout(False)
+        plt.tight_layout(rect=(0.055, 0.085, 1, 1))
+        for ext in ("png", "pdf"):
+            plt.savefig(out_dir / f"{stem}.{ext}", dpi=150)
+        plt.close(fig)
 
 
 def plot_row_seeds(jsonl_paths, out_dir, drop=None, stem="row_price_seeds", estimator=None,
