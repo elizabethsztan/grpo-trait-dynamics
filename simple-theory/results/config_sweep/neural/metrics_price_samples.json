@@ -1,0 +1,42 @@
+{
+  "samples": [
+    8,
+    16,
+    32,
+    64,
+    128,
+    512
+  ],
+  "final": {
+    "samples=8": {
+      "observed": 0.3339,
+      "sampled": 0.2528,
+      "residual": -0.0811
+    },
+    "samples=16": {
+      "observed": 0.3339,
+      "sampled": 0.3008,
+      "residual": -0.0331
+    },
+    "samples=32": {
+      "observed": 0.3339,
+      "sampled": 0.3822,
+      "residual": 0.0483
+    },
+    "samples=64": {
+      "observed": 0.3339,
+      "sampled": 0.2792,
+      "residual": -0.0547
+    },
+    "samples=128": {
+      "observed": 0.3339,
+      "sampled": 0.3434,
+      "residual": 0.0095
+    },
+    "samples=512": {
+      "observed": 0.3339,
+      "sampled": 0.3278,
+      "residual": -0.0061
+    }
+  }
+}

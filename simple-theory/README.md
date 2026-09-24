@@ -112,7 +112,7 @@ Differences from Part 1:
 - **Trait-orthogonal head (default).** The trait direction $v$ is projected out of the activations the head sees, so the head *cannot* select the trait directly ($w^\top v\equiv 0$). $T^{\mathrm{int}}=\mathbb{E}_\pi[s]$ still rises — purely because high-quality actions tend to be trait-rich when $\gamma>0$ (and falls when $\gamma<0$). The trait is *standardised*, so $T$ is not a probability: it can exceed 1 or go negative.
 - **Held-out eval.** A separate frozen eval table ($N_{\mathrm{eval}}$ prompts); all metrics are computed there, since the shared head genuinely generalises.
 - **Backprop.** The head is trained with Adam (`lr`), not a manual logit nudge.
-- **Price check.** The neural check reports both an **exact** enumerated $\mathrm{Cov}$ (a machine-precision reference, $= \Delta T$) and a **sampled** Monte-Carlo estimate from `price_samples` fresh rollouts — the practical "recover the selection term from finite samples" story, converging to the exact line as `samples` grows. The tabular check is exact only (it has no eval split).
+- **Price check.** Both policies report an **exact** enumerated $\mathrm{Cov}$ (a machine-precision reference, $= \Delta T$) and a **sampled** Monte-Carlo estimate from `price_samples` fresh rollouts. The sampled estimate converges to the exact line as the rollout budget grows.
 
 See [outline.md](outline.md) §2 for the full spec.
 
@@ -144,6 +144,8 @@ Runs `num_runs` seeds, averages the curves, and writes to `results/<name>/<mode>
 ```bash
 uv run python run_sweep.py --config configs/config_sweep.yaml --mode tabular
 uv run python run_sweep.py --config configs/config_sweep.yaml --mode neural
+uv run python run_sweep.py --config configs/config_sweep.yaml --mode tabular --sweep price-samples
+uv run python run_sweep.py --config configs/config_sweep.yaml --mode neural --sweep price-samples
 ```
 
 Set `gamma` and `p` as lists in `HiddenQualityConfig`. Each cell is a full `num_runs` run; outputs to `results/<name>/<mode>/plots_sweep/`:
@@ -152,6 +154,7 @@ Set `gamma` and `p` as lists in `HiddenQualityConfig`. Each cell is a full `num_
 - `curves.npz` — per-cell curves at full precision, consumed by `--replot`
 - `plots_sweep/grid_trait_reward.{png,pdf}` — small-multiples grid, rows = $p$, cols = $\gamma$
 - `plots_sweep/grid_price_exact.{png,pdf}` — observed vs exact $\mathrm{Cov}$ per cell (both modes)
-- `plots_sweep/grid_price_estimated.{png,pdf}` — observed vs sampled $\mathrm{Cov}$ per cell (neural only)
+- `plots_sweep/grid_price_estimated.{png,pdf}` — observed vs sampled $\mathrm{Cov}$
+- `plots_sweep_price_samples/grid_price_samples.{png,pdf}` — sampled-estimator convergence as the rollout budget grows
 
 **Prediction:** when the trait is positively correlated with quality, both $T_t$ and $R_t$ rise — GRPO optimises reward, and the spuriously-correlated trait is amplified along with it.

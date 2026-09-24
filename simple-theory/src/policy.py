@@ -15,6 +15,7 @@ class TabularPolicy:
                   mode = "trait_drives_reward", #"trait_drives_reward" (s and r correlated via rho) or "hidden_quality" (z->r, z->s)
                   gamma = 0.5, #version B only: how much trait correlates with hidden quality z
                   p = 0.5,
+                  price_samples = 512, #fresh (x,a) draws for the sampled price-check estimate
                   seed = 290402
                   ):
 
@@ -28,6 +29,7 @@ class TabularPolicy:
         self._mode = mode
         self._gamma = gamma
         self._p = p
+        self._price_samples = price_samples
 
         self._seed = seed
 
@@ -37,6 +39,7 @@ class TabularPolicy:
         self.logits = np.zeros((self._N, self._K))
 
         np.random.seed(self._seed)
+        self._price_rng = np.random.default_rng(self._seed + 12345)
 
         if self._mode == "trait_drives_reward":
             s_arr = np.zeros(self._K, dtype=int)
@@ -104,16 +107,25 @@ class TabularPolicy:
         if not price_check:
             return None
 
-        # Exact Price-equation selection term, enumerated over the full N x K table.
-        # pi (computed at the top of grpo_step) is pi_t; recompute pi_{t+1} after the update.
+        # Both estimators target Cov_{p_t}(omega, s), where
+        # p_t(x,a) = (1/N) pi_t(a|x) and omega = pi_{t+1}/pi_t.
         pi_new = self.get_pi()
         omega = pi_new / pi
-        p_t = pi / self._N                       # p_t(x,a) = (1/N) pi_t(a|x)
-        e_omega_s = np.sum(p_t * omega * self.s)
-        e_omega = np.sum(p_t * omega)
-        e_s = np.sum(p_t * self.s)
-        cov = e_omega_s - e_omega * e_s
-        return cov
+        p_t = pi / self._N
+        cov_exact = (np.sum(p_t * omega * self.s)
+                     - np.sum(p_t * omega) * np.sum(p_t * self.s))
+
+        # Fresh diagnostic draws use a dedicated RNG, so changing the sample budget
+        # cannot alter the stochastic training trajectory.
+        xs = self._price_rng.integers(self._N, size=self._price_samples)
+        cdf = np.cumsum(pi[xs], axis=1)
+        actions = (self._price_rng.random(self._price_samples)[:, None] > cdf).sum(axis=1)
+        actions = np.minimum(actions, self._K - 1)
+        omega_s = omega[xs, actions]
+        s_s = self.s[xs, actions]
+        cov_sampled = np.mean(omega_s * s_s) - np.mean(omega_s) * np.mean(s_s)
+
+        return {"exact": float(cov_exact), "sampled": float(cov_sampled)}
 
 
 class NeuralPolicy:

@@ -45,7 +45,7 @@ def select_reward_cfg(cfg, mode):
     return cfg[REWARD_BLOCK[mode]]
 
 
-def build_policy(policy_cfg, reward_cfg, seed):
+def build_policy(policy_cfg, reward_cfg, seed, price_samples=512):
     mode = policy_cfg["mode"]
     kwargs = {
         "N": policy_cfg["N"],
@@ -54,6 +54,7 @@ def build_policy(policy_cfg, reward_cfg, seed):
         "mode": mode,
         "alpha": cfg_value(reward_cfg, "alpha", 1.0),
         "seed": seed,
+        "price_samples": price_samples,
     }
     if mode == "trait_drives_reward":
         kwargs["rho"] = reward_cfg["rho"]
@@ -87,7 +88,7 @@ def run_single(policy_cfg, reward_cfg, train_cfg, seed, price_check=False,
     if mode == "neural":
         policy = build_neural_policy(policy_cfg, reward_cfg, train_cfg, neural_cfg, seed, price_samples)
     else:
-        policy = build_policy(policy_cfg, reward_cfg, seed)
+        policy = build_policy(policy_cfg, reward_cfg, seed, price_samples)
     policy.init_env()
 
     steps = train_cfg["steps"]
@@ -97,7 +98,7 @@ def run_single(policy_cfg, reward_cfg, train_cfg, seed, price_check=False,
     trait_curve = np.zeros(steps + 1)
     reward_curve = np.zeros(steps + 1)
     exact_increments = np.zeros(steps)
-    sampled_increments = np.zeros(steps) if mode == "neural" else None
+    sampled_increments = np.zeros(steps) if price_check else None
     trait_curve[0] = policy.get_T()
     reward_curve[0] = policy.expected_reward()
 

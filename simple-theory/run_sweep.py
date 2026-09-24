@@ -203,12 +203,12 @@ def plot_price_samples_grid(samples_list, results, colors, output_dir, stem):
         ax.axhline(0, color="grey", ls="--", lw=0.8, zorder=0)
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True, nbins=3))
         ax.set_title(rf"$n$ = {ns}")
-        ax.set_xlabel(r"step $t$")
 
-    axes[0][0].set_ylabel("Cumulative trait change")
+    fig.supylabel("Cumulative\ntrait change", x=0.012)
+    fig.supxlabel(r"Step $t$", y=0.04)
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, frameon=False, loc="upper center", ncol=2)
-    fig.tight_layout(rect=(0, 0, 1, 0.85))
+    fig.tight_layout(rect=(0.02, 0.06, 1, 0.85))
     fig.savefig(output_dir / f"{stem}.png", dpi=150)
     fig.savefig(output_dir / f"{stem}.pdf")
     plt.close(fig)
@@ -292,16 +292,13 @@ def run_gamma_p_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_seed, n
 
 def run_price_samples_sweep(cfg, policy_cfg, neural_cfg, train_cfg, mode, base_seed, num_runs,
                             run_dir, colors):
-    if mode != "neural":
-        raise ValueError("--sweep price-samples requires --mode neural "
-                         "(tabular has no sampled estimator)")
 
     hq = cfg["HiddenQualityConfig"]  # scalar gamma/p — fixed across the sweep
     reward_cfg = {"gamma": hq["gamma"], "p": hq["p"], "alpha": cfg_value(hq, "alpha", 1.0)}
     samples_list = cfg["PriceCheckConfigSweep"]["samples"]
 
-    # Training is bit-identical across n (price_samples only feeds the diagnostic sampled Cov,
-    # never the weight update), so we re-run per n for simplicity; only the sampled curve varies.
+    # Training is bit-identical across n: both policy implementations use a dedicated
+    # diagnostic RNG, so price_samples never affects the weight update.
     results = {}
     final = {}
     for k, ns in enumerate(samples_list):
@@ -335,7 +332,7 @@ def main():
     parser.add_argument("--config", required=True)
     parser.add_argument("--mode", choices=["tabular", "neural"], default="tabular")
     parser.add_argument("--sweep", choices=["gamma-p", "price-samples"], default="gamma-p",
-                        help="axis to sweep: gamma-p grid, or the price-sample budget (neural only)")
+                        help="axis to sweep: gamma-p grid, or the Price-estimator sample budget")
     parser.add_argument("--no-price-check", action="store_false", dest="price_check",
                         help="disable the Price-equation check (on by default; ignored by price-samples)")
     parser.add_argument("--replot", action="store_true",

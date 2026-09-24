@@ -38,10 +38,30 @@ def test_metrics_json_includes_price_check_arrays(tmp_path, monkeypatch):
         "observed_cum_sem",
         "predicted_cum_mean",
         "predicted_cum_sem",
+        "sampled_cum_mean",
+        "sampled_cum_sem",
     ]:
         assert key in metrics
         assert len(metrics[key]) == config["TrainConfig"]["steps"] + 1
 
+
+def test_tabular_price_sample_budget_does_not_change_training():
+    policy_cfg = {"N": 32, "K": 4, "G": 2, "mode": "hidden_quality"}
+    reward_cfg = {"gamma": 0.5, "p": 0.3, "alpha": 1.0}
+    train_cfg = {"steps": 5, "batch_size": 4, "eta": 0.3}
+
+    small_budget = run_experiment.run_single(
+        policy_cfg, reward_cfg, train_cfg, seed=11, price_check=True,
+        mode="tabular", price_samples=8,
+    )
+    large_budget = run_experiment.run_single(
+        policy_cfg, reward_cfg, train_cfg, seed=11, price_check=True,
+        mode="tabular", price_samples=64,
+    )
+
+    np.testing.assert_array_equal(small_budget[0], large_budget[0])
+    np.testing.assert_array_equal(small_budget[1], large_budget[1])
+    np.testing.assert_array_equal(small_budget[2], large_budget[2])
 
 def test_trait_plot_lower_band_is_not_clipped_to_zero(tmp_path, monkeypatch):
     captured_lower_bands = []
