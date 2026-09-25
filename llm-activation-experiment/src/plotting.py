@@ -88,11 +88,12 @@ def _grid_layout(rows, features_path):
 
 
 def _cum_series(rows, fid, N, pred_of):
-    """(steps, cumulative observed ΔT, cumulative Price prediction) for one feature at N."""
-    fr = sorted((r for r in rows if r["feature_id"] == fid and r["N"] == N), key=lambda r: r["step"])
-    steps = np.array([r["step"] for r in fr])
-    obs = np.cumsum([r["direct_drift"] for r in fr])
-    pred = np.cumsum([pred_of(r) for r in fr])
+    """Checkpoint endpoints and cumulative observed/Price changes, including T_0=0."""
+    fr = sorted((r for r in rows if r["feature_id"] == fid and r["N"] == N),
+                key=lambda r: r["step"])
+    steps = np.array([0] + [r.get("step_end", r["step"] + 1) for r in fr])
+    obs = np.concatenate([[0.0], np.cumsum([r["direct_drift"] for r in fr])])
+    pred = np.concatenate([[0.0], np.cumsum([pred_of(r) for r in fr])])
     return steps, obs, pred, fr
 
 
@@ -110,6 +111,12 @@ _ESTIMATORS = {
     "cov": (lambda r: r.get("cov", r["price"]), "cov"),
     "sn":  (lambda r: r.get("price_sn", r.get("cov", r["price"])), "selection"),
 }
+
+
+def _transmission_of(row, estimator_label):
+    """Match transmission normalisation to the selected selection estimator."""
+    value = row.get("transmission", 0.0)
+    return value / row["mean_omega"] if estimator_label == "selection" else value
 
 
 def _resolve_estimator(estimator, rows):
@@ -186,6 +193,81 @@ def plot_grid_seeds(jsonl_paths, out_dir, drop=None, stem="grid_price_seeds", es
         ylabel.set_in_layout(False)
         handles, labels_ = axes.flat[0].get_legend_handles_labels()
         legend = fig.legend(handles, labels_, loc="lower center", ncol=2, frameon=False,
+                            bbox_to_anchor=(0.5, -0.005))
+        legend.set_in_layout(False)
+        plt.tight_layout(rect=(0.055, 0.085, 1, 1))
+        for ext in ("png", "pdf"):
+            plt.savefig(out_dir / f"{stem}.{ext}", dpi=150)
+        plt.close(fig)
+
+
+def plot_grid_decomp_seeds(jsonl_paths, out_dir, drop=None,
+                           stem="grid_decomp_seeds", estimator=None):
+    """Paper-style cumulative Price decomposition across multiple training seeds."""
+    out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
+    loaded = _load_seeds(jsonl_paths, drop, estimator)
+    if loaded is None:
+        return
+    per_seed, N_max, pred_of, est_label, slots, cols, title, labels = loaded
+    if not all(all("transmission" in row for row in rows) for rows in per_seed):
+        raise ValueError("decomposition plot requires transmission values for every row")
+
+    rows_g = len(slots) // cols
+    colors = [p["color"] for p in plt.rcParams["axes.prop_cycle"]]
+    with plt.rc_context(GRID_FONTS):
+        fig, axes = plt.subplots(rows_g, cols, figsize=(15, 8.2),
+                                 squeeze=False, sharey="row")
+        for ax, fid in zip(axes.flat, slots):
+            if fid is None:
+                ax.set_visible(False)
+                continue
+
+            series = []
+            for rows in per_seed:
+                fr = sorted((row for row in rows
+                             if row["feature_id"] == fid and row["N"] == N_max),
+                            key=lambda row: row["step"])
+                steps = np.array([0] + [row.get("step_end", row["step"] + 1) for row in fr])
+                observed = np.concatenate([[0.0], np.cumsum([row["direct_drift"] for row in fr])])
+                selection = np.concatenate([[0.0], np.cumsum([pred_of(row) for row in fr])])
+                transmission = np.concatenate(
+                    [[0.0], np.cumsum([_transmission_of(row, est_label) for row in fr])])
+                series.append((steps, observed, selection, transmission, fr))
+
+            steps = series[0][0]
+            if any(not np.array_equal(item[0], steps) for item in series[1:]):
+                raise ValueError(f"feature {fid}: checkpoint schedules differ across seeds")
+            observed = np.stack([item[1] for item in series])
+            selection = np.stack([item[2] for item in series])
+            transmission = np.stack([item[3] for item in series])
+            full = selection + transmission
+
+            for obs_seed, full_seed, sel_seed, trans_seed in zip(
+                    observed, full, selection, transmission):
+                ax.plot(steps, obs_seed, color=colors[0], lw=0.8, alpha=0.3)
+                ax.plot(steps, full_seed, color=colors[1], lw=0.8, alpha=0.3)
+                ax.plot(steps, sel_seed, color=colors[2], ls="--", lw=0.8, alpha=0.3)
+                ax.plot(steps, trans_seed, color=colors[3], ls="-.", lw=0.8, alpha=0.3)
+
+            ax.plot(steps, observed.mean(0), color=colors[0], lw=2, marker="o", ms=3,
+                    label=r"Observed $\Delta T$", zorder=5)
+            ax.plot(steps, full.mean(0), color=colors[1], lw=2,
+                    marker="s", ms=3, label="Price(Cov + Trans)", zorder=4)
+            ax.plot(steps, selection.mean(0), color=colors[2], ls="--", lw=1.8,
+                    label="Selection", zorder=3)
+            ax.plot(steps, transmission.mean(0), color=colors[3], ls="-.", lw=1.8,
+                    label="Transmission", zorder=3)
+            ax.set_title(title(fid, series[0][4]))
+            ax.axhline(0, color="grey", lw=0.6, zorder=0)
+            ax.xaxis.set_major_locator(ticker.MultipleLocator(6))
+            ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+
+        xlabel = fig.supxlabel("GRPO Step $t$", y=0.055)
+        xlabel.set_in_layout(False)
+        ylabel = fig.supylabel("Cumulative Trait Change", x=0.052)
+        ylabel.set_in_layout(False)
+        handles, labels_ = axes.flat[0].get_legend_handles_labels()
+        legend = fig.legend(handles, labels_, loc="lower center", ncol=4, frameon=False,
                             bbox_to_anchor=(0.5, -0.005))
         legend.set_in_layout(False)
         plt.tight_layout(rect=(0.055, 0.085, 1, 1))
@@ -320,7 +402,7 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
         sig = [r for r in rN if not r["is_control"]]
         obs = np.array([r["direct_drift"] for r in sig])
         sel = np.array([pred_of(r) for r in sig])                       # selection term
-        trn = np.array([r["transmission"] for r in sig])
+        trn = np.array([_transmission_of(r, est_label) for r in sig])
         full = sel + trn                                                # full prediction
         fig, (a1, a2) = plt.subplots(1, 2, figsize=(9.2, 4.5))
 
@@ -367,13 +449,15 @@ def plot_from_jsonl(jsonl_path, out_dir, drop=None, estimator=None):
                 ax.set_visible(False)
                 continue
             steps, obs, cov, fr = _cum_series(rows, fid, N_max, pred_of)
-            tr = np.cumsum([r.get("transmission", 0.0) for r in fr])
+            tr = np.concatenate(
+                [[0.0], np.cumsum([_transmission_of(r, est_label) for r in fr])])
             ax.axhline(0, lw=0.5, color="grey", zorder=0)
-            ax.plot(steps, obs, color=colors[0], lw=2.1, marker="o", ms=3, label="observed ΔT", zorder=4)
-            ax.plot(steps, cov + tr, color=colors[2], ls="--", lw=1.6, marker="s", ms=2.5,
-                    label=f"{est_label} + trans", zorder=3)
-            ax.plot(steps, cov, color=colors[1], ls=":", lw=1.6, label=f"{est_label}", zorder=2)
-            ax.plot(steps, tr, color=colors[3], ls="-.", lw=1.4, label="transmission", zorder=2)
+            ax.plot(steps, obs, color=colors[0], lw=2.1, marker="o", ms=3,
+                    label=r"Observed $\Delta T$", zorder=4)
+            ax.plot(steps, cov + tr, color=colors[1], lw=1.8, marker="s", ms=2.5,
+                    label="Price(Cov + Trans)", zorder=3)
+            ax.plot(steps, cov, color=colors[2], ls="--", lw=1.6, label="Selection", zorder=2)
+            ax.plot(steps, tr, color=colors[3], ls="-.", lw=1.4, label="Transmission", zorder=2)
             ax.set_title(_title(fid, fr))
             ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
         axes.flat[0].legend(frameon=False)
